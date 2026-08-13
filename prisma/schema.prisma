@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -11,4 +5,245 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum UserRole {
+  CANDIDATE
+  RECRUITER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  DELETED
+}
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  email        String     @unique
+  passwordHash String
+  role         UserRole
+  status       UserStatus @default(PENDING)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  candidate Candidate?
+  recruiter Recruiter?
+
+  @@map("users")
+}
+
+model Candidate {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @unique @db.Uuid
+  headline         String?
+  summary          String?
+  location         String?
+  salaryMin        Decimal?
+  salaryMax        Decimal?
+  currency         String?
+  availabilityDate DateTime?
+  remotePreference String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id])
+  candidateSkills CandidateSkill[]
+  matches         Match[]
+
+  @@map("candidates")
+}
+
+model Recruiter {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  companyId String   @db.Uuid
+  jobTitle  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+
+  jobs Job[]
+
+  @@index([companyId])
+  @@map("recruiters")
+}
+
+model Company {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  website     String?
+  description String?
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  recruiters Recruiter[]
+  jobs       Job[]
+
+  @@map("companies")
+}
+
+model Job {
+  id                   String         @id @default(uuid()) @db.Uuid
+  companyId            String         @db.Uuid
+  createdByRecruiterId String         @db.Uuid
+  title                String
+  description          String
+  location             String?
+  employmentType       EmploymentType
+  workMode             WorkMode
+  salaryMin            Decimal?
+  salaryMax            Decimal?
+  currency             String?
+  status               JobStatus      @default(DRAFT)
+  publishedAt          DateTime?
+  expiresAt            DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  company            Company          @relation(fields: [companyId], references: [id])
+  createdByRecruiter Recruiter        @relation(fields: [createdByRecruiterId], references: [id])
+  requirements       JobRequirement[]
+  matches            Match[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("jobs")
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  FREELANCE
+  INTERNSHIP
+}
+
+enum WorkMode {
+  REMOTE
+  HYBRID
+  ONSITE
+  FLEXIBLE
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  CLOSED
+  ARCHIVED
+}
+
+model Skill {
+  id          String        @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String        @unique
+  category    SkillCategory
+  description String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  candidateSkills CandidateSkill[]
+  jobRequirements JobRequirement[]
+
+  @@map("skills")
+}
+
+enum SkillCategory {
+  FRONTEND
+  BACKEND
+  FULLSTACK
+  MOBILE
+  DEVOPS
+  CLOUD
+  DATA
+  AI_ML
+  SECURITY
+  DATABASE
+  TESTING
+  PROJECT_MANAGEMENT
+  DESIGN
+  OTHER
+}
+
+model CandidateSkill {
+  id                String               @id @default(uuid()) @db.Uuid
+  candidateId       String               @db.Uuid
+  skillId           String               @db.Uuid
+  proficiencyLevel  Int
+  yearsOfExperience Decimal?
+  source            CandidateSkillSource
+  confidence        Decimal?
+  verified          Boolean              @default(false)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+  skill     Skill     @relation(fields: [skillId], references: [id])
+
+  @@unique([candidateId, skillId])
+  @@index([candidateId])
+  @@index([skillId])
+  @@map("candidate_skills")
+}
+
+enum CandidateSkillSource {
+  SELF_REPORTED
+  CV
+  AI_EXTRACTED
+  ASSESSMENT
+  VERIFIED
+  RECRUITER_CONFIRMED
+}
+
+model JobRequirement {
+  id           String   @id @default(uuid()) @db.Uuid
+  jobId        String   @db.Uuid
+  skillId      String   @db.Uuid
+  minimumLevel Int
+  required     Boolean  @default(false)
+  weight       Decimal?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  job   Job   @relation(fields: [jobId], references: [id])
+  skill Skill @relation(fields: [skillId], references: [id])
+
+  @@unique([jobId, skillId])
+  @@index([jobId])
+  @@index([skillId])
+  @@map("job_requirements")
+}
+
+model Match {
+  id                String   @id @default(uuid()) @db.Uuid
+  candidateId       String   @db.Uuid
+  jobId             String   @db.Uuid
+  overallScore      Decimal
+  skillScore        Decimal?
+  experienceScore   Decimal?
+  locationScore     Decimal?
+  salaryScore       Decimal?
+  availabilityScore Decimal?
+  preferenceScore   Decimal?
+  explanation       Json?
+  calculatedAt      DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+  job       Job       @relation(fields: [jobId], references: [id])
+
+  @@unique([candidateId, jobId])
+  @@index([candidateId])
+  @@index([jobId])
+  @@index([overallScore])
+  @@map("matches")
 }

@@ -1,5 +1,4 @@
-import { IsEnum, IsInt, IsNumber, IsUUID, Max, Min } from 'class-validator';
-import { CandidateSkillSource } from '../../../../generated/prisma/enums';
+import { IsInt, IsNumber, IsUUID, Max, Min } from 'class-validator';
 
 export class CreateCandidateSkillDto {
     @IsUUID()
@@ -13,7 +12,4 @@ export class CreateCandidateSkillDto {
     @IsNumber()
     @Min(0)
     yearsOfExperience: number;
-
-    @IsEnum(CandidateSkillSource)
-    source: CandidateSkillSource;
 }

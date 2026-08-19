@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { CreateCandidateSkillDto } from './dto/create-candidate-skill.dto';
 import { UpdateCandidateSkillDto } from './dto/update-candidate-skill.dto';
+import { CandidateSkillSource } from '../../../generated/prisma/enums';
 
 @Injectable()
 export class CandidateSkillsService {
@@ -56,8 +57,6 @@ export class CandidateSkillsService {
                 role: true,
             },
         });
-
-
 
         if (!user) {
             throw new NotFoundException('User not found');
@@ -115,7 +114,7 @@ export class CandidateSkillsService {
                 skillId: skill.id,
                 proficiencyLevel: dto.proficiencyLevel,
                 yearsOfExperience: dto.yearsOfExperience,
-                source: dto.source,
+                source: CandidateSkillSource.SELF_REPORTED,
             },
             include: {
                 skill: true,
@@ -157,7 +156,6 @@ export class CandidateSkillsService {
             data: {
                 proficiencyLevel: dto.proficiencyLevel,
                 yearsOfExperience: dto.yearsOfExperience,
-                source: dto.source,
             },
             include: {
                 skill: {

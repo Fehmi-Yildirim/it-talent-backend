@@ -18,6 +18,13 @@ async function main() {
     const prisma = new PrismaClient({ adapter });
 
     try {
+        // ------------------------------------------------------------
+        // Bootstrap ADMIN
+        // ------------------------------------------------------------
+
+        const adminEmail = 'admin@example.com';
+        const adminPassword = 'Admin12345!';
+
         const existingAdmin = await prisma.user.findFirst({
             where: {
                 role: 'ADMIN',
@@ -32,30 +39,66 @@ async function main() {
             console.log(
                 `ADMIN already exists: ${existingAdmin.email} (${existingAdmin.id})`,
             );
-            return;
+        } else {
+            const existingAdminEmail = await prisma.user.findUnique({
+                where: {
+                    email: adminEmail,
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+            if (existingAdminEmail) {
+                throw new Error(
+                    `${adminEmail} already exists but is not an ADMIN. Aborting.`,
+                );
+            }
+
+            const passwordHash = await argon2.hash(adminPassword);
+
+            const admin = await prisma.user.create({
+                data: {
+                    email: adminEmail,
+                    passwordHash,
+                    role: 'ADMIN',
+                    status: 'ACTIVE',
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                    status: true,
+                },
+            });
+
+            console.log('Bootstrap ADMIN created:');
+            console.log(admin);
         }
 
-        const email = 'admin@example.com';
-        const password = 'Admin12345!';
+        // ------------------------------------------------------------
+        // E2E CANDIDATE
+        // ------------------------------------------------------------
 
-        const existingUser = await prisma.user.findUnique({
-            where: { email },
-            select: { id: true },
-        });
+        const candidateEmail = 'test2@example.com';
+        const candidatePassword = 'Test12345!';
 
-        if (existingUser) {
-            throw new Error(
-                `${email} already exists but is not an ADMIN. Aborting.`,
-            );
-        }
+        const candidatePasswordHash =
+            await argon2.hash(candidatePassword);
 
-        const passwordHash = await argon2.hash(password);
-
-        const admin = await prisma.user.create({
-            data: {
-                email,
-                passwordHash,
-                role: 'ADMIN',
+        const candidate = await prisma.user.upsert({
+            where: {
+                email: candidateEmail,
+            },
+            update: {
+                passwordHash: candidatePasswordHash,
+                role: 'CANDIDATE',
+                status: 'ACTIVE',
+            },
+            create: {
+                email: candidateEmail,
+                passwordHash: candidatePasswordHash,
+                role: 'CANDIDATE',
                 status: 'ACTIVE',
             },
             select: {
@@ -66,10 +109,44 @@ async function main() {
             },
         });
 
-        console.log('Bootstrap ADMIN created:');
-        console.log(admin);
-        console.log(`Email: ${email}`);
-        console.log(`Password: ${password}`);
+        console.log('E2E CANDIDATE ready:');
+        console.log(candidate);
+        console.log(`Email: ${candidateEmail}`);
+        console.log(`Password: ${candidatePassword}`);
+
+        // ------------------------------------------------------------
+        // Candidate profile
+        // ------------------------------------------------------------
+
+        const existingCandidateProfile =
+            await prisma.candidate.findUnique({
+                where: {
+                    userId: candidate.id,
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+        if (existingCandidateProfile) {
+            console.log(
+                `Candidate profile already exists: ${existingCandidateProfile.id}`,
+            );
+        } else {
+            const candidateProfile =
+                await prisma.candidate.create({
+                    data: {
+                        userId: candidate.id,
+                    },
+                    select: {
+                        id: true,
+                        userId: true,
+                    },
+                });
+
+            console.log('Candidate profile created:');
+            console.log(candidateProfile);
+        }
     } finally {
         await prisma.$disconnect();
     }

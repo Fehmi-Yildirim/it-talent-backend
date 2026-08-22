@@ -9,6 +9,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 
 import { UserRole } from '../../generated/prisma/enums';
@@ -26,6 +27,7 @@ type AuthenticatedRequest = Request & {
 };
 
 @Controller('users')
+@ApiBearerAuth('access-token')
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 

@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { GetSkillsDto } from './dto/get-skills.dto';
 import { SkillsService } from './skills.service';
 import { UserRole } from '../../generated/prisma/enums';
@@ -25,6 +26,7 @@ export class SkillsController {
 
     @Roles(UserRole.ADMIN)
     @UseGuards(JwtAuthGuard, RolesGuard)
+    @ApiBearerAuth('access-token')
     @Post()
     create(@Body() dto: CreateSkillDto) {
         return this.skillsService.create(dto);
@@ -32,6 +34,7 @@ export class SkillsController {
 
     @Roles(UserRole.ADMIN)
     @UseGuards(JwtAuthGuard, RolesGuard)
+    @ApiBearerAuth('access-token')
     @Patch(':id')
     update(@Param('id') id: string, @Body() dto: UpdateSkillDto) {
         return this.skillsService.update(id, dto);
@@ -39,6 +42,7 @@ export class SkillsController {
 
     @Roles(UserRole.ADMIN)
     @UseGuards(JwtAuthGuard, RolesGuard)
+    @ApiBearerAuth('access-token')
     @Delete(':id')
     remove(@Param('id') id: string) {
         return this.skillsService.remove(id);

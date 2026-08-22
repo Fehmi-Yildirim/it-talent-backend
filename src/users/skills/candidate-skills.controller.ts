@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -17,6 +18,7 @@ interface AuthRequest extends Request {
 }
 
 @Controller('users/me/skills')
+@ApiBearerAuth('access-token')
 export class CandidateSkillsController {
     constructor(
         private readonly candidateSkillsService: CandidateSkillsService,

@@ -10,15 +10,27 @@ describe('JobsService', () => {
         recruiter: {
             findUnique: jest.fn(),
         },
+
         skill: {
             findMany: jest.fn(),
         },
+
         job: {
             create: jest.fn(),
             findMany: jest.fn(),
             findFirst: jest.fn(),
             update: jest.fn(),
         },
+
+        jobRequirement: {
+            findMany: jest.fn(),
+            findUnique: jest.fn(),
+            delete: jest.fn(),
+            deleteMany: jest.fn(),
+            createMany: jest.fn(),
+        },
+
+        $transaction: jest.fn(),
     };
 
     beforeEach(async () => {
@@ -680,6 +692,373 @@ describe('JobsService', () => {
                 },
             },
         });
+    });
+
+    // Test retrieving job requirements
+    it('should return requirements for a job belonging to the recruiter company', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue({
+            companyId: 'company-a',
+        });
+
+        prisma.job.findFirst.mockResolvedValue({
+            id: 'job-1',
+            companyId: 'company-a',
+        });
+
+        const requirements = [
+            {
+                id: 'requirement-1',
+                jobId: 'job-1',
+                skillId: 'skill-1',
+                required: true,
+                minimumLevel: 1,
+                skill: {
+                    id: 'skill-1',
+                    name: 'TypeScript',
+                },
+            },
+            {
+                id: 'requirement-2',
+                jobId: 'job-1',
+                skillId: 'skill-2',
+                required: false,
+                minimumLevel: 1,
+                skill: {
+                    id: 'skill-2',
+                    name: 'Docker',
+                },
+            },
+        ];
+
+        prisma.jobRequirement.findMany.mockResolvedValue(
+            requirements,
+        );
+
+        const result = await service.getRequirements(
+            'user-a',
+            'job-1',
+        );
+
+        expect(prisma.job.findFirst).toHaveBeenCalledWith({
+            where: {
+                id: 'job-1',
+                companyId: 'company-a',
+            },
+            select: {
+                id: true,
+            },
+        });
+
+        expect(
+            prisma.jobRequirement.findMany,
+        ).toHaveBeenCalledWith({
+            where: {
+                jobId: 'job-1',
+            },
+            include: {
+                skill: true,
+            },
+            orderBy: [
+                {
+                    required: 'desc',
+                },
+                {
+                    skill: {
+                        name: 'asc',
+                    },
+                },
+            ],
+        });
+
+        expect(result).toEqual(requirements);
+    });
+
+    // Test cross-company access
+    it('should reject retrieving requirements from another company', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue({
+            companyId: 'company-a',
+        });
+
+        prisma.job.findFirst.mockResolvedValue(null);
+
+        await expect(
+            service.getRequirements(
+                'user-a',
+                'job-from-company-b',
+            ),
+        ).rejects.toThrow('Job not found');
+    });
+
+    // Test non-recruiter authorization
+    it('should reject non-recruiters when retrieving requirements', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue(null);
+
+        await expect(
+            service.getRequirements(
+                'user-id',
+                'job-id',
+            ),
+        ).rejects.toThrow(
+            'Only recruiters can access job requirements',
+        );
+
+        expect(prisma.job.findFirst).not.toHaveBeenCalled();
+        expect(
+            prisma.jobRequirement.findMany,
+        ).not.toHaveBeenCalled();
+    });
+
+    // Test successful requirement replacement
+    it('should replace job requirements', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue({
+            companyId: 'company-a',
+        });
+
+        prisma.job.findFirst.mockResolvedValue({
+            id: 'job-1',
+            companyId: 'company-a',
+        });
+
+        prisma.skill.findMany.mockResolvedValue([
+            { id: 'skill-required' },
+            { id: 'skill-preferred' },
+        ]);
+
+        const tx = {
+            jobRequirement: {
+                deleteMany: jest.fn(),
+                createMany: jest.fn(),
+                findMany: jest.fn(),
+            },
+        };
+
+        tx.jobRequirement.findMany.mockResolvedValue([
+            {
+                id: 'requirement-1',
+                jobId: 'job-1',
+                skillId: 'skill-required',
+                required: true,
+                minimumLevel: 1,
+            },
+            {
+                id: 'requirement-2',
+                jobId: 'job-1',
+                skillId: 'skill-preferred',
+                required: false,
+                minimumLevel: 1,
+            },
+        ]);
+
+        prisma.$transaction.mockImplementation(
+            async (callback) => callback(tx),
+        );
+
+        prisma.$transaction.mockImplementation(
+            async (callback) => callback(tx),
+        );
+
+        prisma.jobRequirement.findMany.mockResolvedValue([
+            {
+                id: 'requirement-1',
+                jobId: 'job-1',
+                skillId: 'skill-required',
+                required: true,
+                minimumLevel: 1,
+            },
+            {
+                id: 'requirement-2',
+                jobId: 'job-1',
+                skillId: 'skill-preferred',
+                required: false,
+                minimumLevel: 1,
+            },
+        ]);
+
+        const result = await service.updateRequirements(
+            'user-a',
+            'job-1',
+            {
+                requiredSkillIds: ['skill-required'],
+                preferredSkillIds: ['skill-preferred'],
+            },
+        );
+
+        expect(prisma.$transaction).toHaveBeenCalled();
+
+        expect(tx.jobRequirement.deleteMany).toHaveBeenCalledWith({
+            where: {
+                jobId: 'job-1',
+            },
+        });
+
+        expect(
+            tx.jobRequirement.createMany,
+        ).toHaveBeenCalledWith({
+            data: [
+                {
+                    jobId: 'job-1',
+                    skillId: 'skill-required',
+                    required: true,
+                    minimumLevel: 1,
+                },
+                {
+                    jobId: 'job-1',
+                    skillId: 'skill-preferred',
+                    required: false,
+                    minimumLevel: 1,
+                },
+            ],
+        });
+    });
+
+    // Test invalid skills
+    it('should reject unknown skills when updating requirements', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue({
+            companyId: 'company-a',
+        });
+
+        prisma.job.findFirst.mockResolvedValue({
+            id: 'job-1',
+            companyId: 'company-a',
+        });
+
+        prisma.skill.findMany.mockResolvedValue([]);
+
+        await expect(
+            service.updateRequirements(
+                'user-a',
+                'job-1',
+                {
+                    requiredSkillIds: ['skill-does-not-exist'],
+                },
+            ),
+        ).rejects.toThrow(
+            'One or more skills do not exist',
+        );
+
+        expect(prisma.job.update).not.toHaveBeenCalled();
+    });
+
+    // Test duplicate skills
+    it('should reject duplicate skills when updating requirements', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue({
+            companyId: 'company-a',
+        });
+
+        prisma.job.findFirst.mockResolvedValue({
+            id: 'job-1',
+            companyId: 'company-a',
+        });
+
+        await expect(
+            service.updateRequirements(
+                'user-a',
+                'job-1',
+                {
+                    requiredSkillIds: [
+                        'skill-1',
+                        'skill-1',
+                    ],
+                },
+            ),
+        ).rejects.toThrow(
+            'A skill cannot be added to a job more than once',
+        );
+
+        expect(prisma.job.update).not.toHaveBeenCalled();
+    });
+
+    // Test required/preferred overlap
+    it('should reject a skill that is both required and preferred', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue({
+            companyId: 'company-a',
+        });
+
+        prisma.job.findFirst.mockResolvedValue({
+            id: 'job-1',
+            companyId: 'company-a',
+        });
+
+        await expect(
+            service.updateRequirements(
+                'user-a',
+                'job-1',
+                {
+                    requiredSkillIds: ['skill-1'],
+                    preferredSkillIds: ['skill-1'],
+                },
+            ),
+        ).rejects.toThrow(
+            'A skill cannot be both required and preferred',
+        );
+
+        expect(prisma.job.update).not.toHaveBeenCalled();
+    });
+
+    // Test successful requirement removal
+    it('should remove a job requirement', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue({
+            companyId: 'company-a',
+        });
+
+        prisma.job.findFirst.mockResolvedValue({
+            id: 'job-1',
+        });
+
+        prisma.jobRequirement.findUnique.mockResolvedValue({
+            id: 'requirement-1',
+            jobId: 'job-1',
+            skillId: 'skill-1',
+        });
+
+        prisma.jobRequirement.delete.mockResolvedValue({
+            id: 'requirement-1',
+        });
+
+        const result = await service.removeRequirement(
+            'user-a',
+            'job-1',
+            'skill-1',
+        );
+
+        expect(
+            prisma.jobRequirement.delete,
+        ).toHaveBeenCalledWith({
+            where: {
+                id: 'requirement-1',
+            },
+        });
+
+        expect(result).toEqual({
+            message: 'Job requirement removed successfully',
+        });
+    });
+
+    // Test removing a requirement that does not exist
+    it('should reject removing a non-existing job requirement', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue({
+            companyId: 'company-a',
+        });
+
+        prisma.job.findFirst.mockResolvedValue({
+            id: 'job-1',
+        });
+
+        prisma.jobRequirement.findUnique.mockResolvedValue(null);
+
+        await expect(
+            service.removeRequirement(
+                'user-a',
+                'job-1',
+                'skill-does-not-exist',
+            ),
+        ).rejects.toThrow(
+            'Job requirement not found',
+        );
+
+        expect(
+            prisma.jobRequirement.delete,
+        ).not.toHaveBeenCalled();
     });
 
 });

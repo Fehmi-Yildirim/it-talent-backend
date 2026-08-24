@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../database/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
+import { UpdateJobRequirementsDto } from './dto/update-job-requirements.dto';
 
 @Injectable()
 export class JobsService {
@@ -230,6 +231,283 @@ export class JobsService {
         }
 
         return job;
+    }
+
+    // Get requirements for a job
+    async getRequirements(
+        userId: string,
+        jobId: string,
+    ) {
+        const recruiter =
+            await this.prisma.recruiter.findUnique({
+                where: {
+                    userId,
+                },
+                select: {
+                    companyId: true,
+                },
+            });
+
+        if (!recruiter) {
+            throw new ForbiddenException(
+                'Only recruiters can access job requirements',
+            );
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException(
+                'Recruiter is not assigned to a company',
+            );
+        }
+
+        const job =
+            await this.prisma.job.findFirst({
+                where: {
+                    id: jobId,
+                    companyId: recruiter.companyId,
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+        if (!job) {
+            throw new NotFoundException(
+                'Job not found',
+            );
+        }
+
+        return this.prisma.jobRequirement.findMany({
+            where: {
+                jobId: job.id,
+            },
+            include: {
+                skill: true,
+            },
+            orderBy: [
+                {
+                    required: 'desc',
+                },
+                {
+                    skill: {
+                        name: 'asc',
+                    },
+                },
+            ],
+        });
+    }
+
+    // Update all requirements for a job
+    async updateRequirements(
+        userId: string,
+        jobId: string,
+        dto: UpdateJobRequirementsDto,
+    ) {
+        const recruiter =
+            await this.prisma.recruiter.findUnique({
+                where: {
+                    userId,
+                },
+                select: {
+                    companyId: true,
+                },
+            });
+
+        if (!recruiter) {
+            throw new ForbiddenException(
+                'Only recruiters can update job requirements',
+            );
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException(
+                'Recruiter is not assigned to a company',
+            );
+        }
+
+        const job =
+            await this.prisma.job.findFirst({
+                where: {
+                    id: jobId,
+                    companyId: recruiter.companyId,
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+        if (!job) {
+            throw new NotFoundException(
+                'Job not found',
+            );
+        }
+
+        const requiredSkillIds =
+            dto.requiredSkillIds ?? [];
+
+        const preferredSkillIds =
+            dto.preferredSkillIds ?? [];
+
+        const hasDuplicates = (ids: string[]) =>
+            new Set(ids).size !== ids.length;
+
+        if (
+            hasDuplicates(requiredSkillIds) ||
+            hasDuplicates(preferredSkillIds)
+        ) {
+            throw new BadRequestException(
+                'A skill cannot be added to a job more than once',
+            );
+        }
+
+        const overlap =
+            requiredSkillIds.filter((skillId) =>
+                preferredSkillIds.includes(skillId),
+            );
+
+        if (overlap.length > 0) {
+            throw new BadRequestException(
+                'A skill cannot be both required and preferred',
+            );
+        }
+
+        const skillIds = [
+            ...requiredSkillIds,
+            ...preferredSkillIds,
+        ];
+
+        if (skillIds.length > 0) {
+            const skills =
+                await this.prisma.skill.findMany({
+                    where: {
+                        id: {
+                            in: skillIds,
+                        },
+                    },
+                    select: {
+                        id: true,
+                    },
+                });
+
+            if (skills.length !== skillIds.length) {
+                throw new BadRequestException(
+                    'One or more skills do not exist',
+                );
+            }
+        }
+
+        return this.prisma.$transaction(
+            async (tx) => {
+                await tx.jobRequirement.deleteMany({
+                    where: {
+                        jobId: job.id,
+                    },
+                });
+
+                await tx.jobRequirement.createMany({
+                    data: [
+                        ...requiredSkillIds.map(
+                            (skillId) => ({
+                                jobId: job.id,
+                                skillId,
+                                required: true,
+                                minimumLevel: 1,
+                            }),
+                        ),
+                        ...preferredSkillIds.map(
+                            (skillId) => ({
+                                jobId: job.id,
+                                skillId,
+                                required: false,
+                                minimumLevel: 1,
+                            }),
+                        ),
+                    ],
+                });
+
+                return tx.jobRequirement.findMany({
+                    where: {
+                        jobId: job.id,
+                    },
+                    include: {
+                        skill: true,
+                    },
+                    orderBy: [
+                        {
+                            required: 'desc',
+                        },
+                        {
+                            skill: {
+                                name: 'asc',
+                            },
+                        },
+                    ],
+                });
+            },
+        );
+    }
+
+    // Delete all requirements for a job
+    async removeRequirement(
+        userId: string,
+        jobId: string,
+        skillId: string,
+    ) {
+        const recruiter =
+            await this.prisma.recruiter.findUnique({
+                where: { userId },
+                select: { companyId: true },
+            });
+
+        if (!recruiter) {
+            throw new ForbiddenException(
+                'Only recruiters can modify job requirements',
+            );
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException(
+                'Recruiter is not assigned to a company',
+            );
+        }
+
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                companyId: recruiter.companyId,
+            },
+            select: { id: true },
+        });
+
+        if (!job) {
+            throw new NotFoundException('Job not found');
+        }
+
+        const requirement =
+            await this.prisma.jobRequirement.findUnique({
+                where: {
+                    jobId_skillId: {
+                        jobId: job.id,
+                        skillId,
+                    },
+                },
+            });
+
+        if (!requirement) {
+            throw new NotFoundException(
+                'Job requirement not found',
+            );
+        }
+
+        await this.prisma.jobRequirement.delete({
+            where: {
+                id: requirement.id,
+            },
+        });
+
+        return {
+            message: 'Job requirement removed successfully',
+        };
     }
 
     // Update an existing job

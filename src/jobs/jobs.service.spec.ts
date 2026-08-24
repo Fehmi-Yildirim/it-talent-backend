@@ -1061,4 +1061,70 @@ describe('JobsService', () => {
         ).not.toHaveBeenCalled();
     });
 
+    it('should publish a draft job', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue({
+            companyId: 'company-a',
+        });
+
+        prisma.job.findFirst.mockResolvedValue({
+            id: 'job-1',
+            status: 'DRAFT',
+        });
+
+        prisma.job.update.mockResolvedValue({
+            id: 'job-1',
+            status: 'PUBLISHED',
+            publishedAt: expect.any(Date),
+        });
+
+        const result = await service.publish(
+            'user-a',
+            'job-1',
+        );
+
+        expect(prisma.job.update).toHaveBeenCalledWith({
+            where: {
+                id: 'job-1',
+            },
+            data: {
+                status: 'PUBLISHED',
+                publishedAt: expect.any(Date),
+            },
+        });
+
+        expect(result.status).toBe('PUBLISHED');
+    });
+
+    it('should close a published job', async () => {
+        prisma.recruiter.findUnique.mockResolvedValue({
+            companyId: 'company-a',
+        });
+
+        prisma.job.findFirst.mockResolvedValue({
+            id: 'job-1',
+            status: 'PUBLISHED',
+        });
+
+        prisma.job.update.mockResolvedValue({
+            id: 'job-1',
+            status: 'CLOSED',
+        });
+
+        const result = await service.close(
+            'user-a',
+            'job-1',
+        );
+
+        expect(prisma.job.update).toHaveBeenCalledWith({
+            where: {
+                id: 'job-1',
+            },
+            data: {
+                status: 'CLOSED',
+            },
+        });
+
+        expect(result.status).toBe('CLOSED');
+    });
+
 });

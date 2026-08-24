@@ -233,6 +233,121 @@ export class JobsService {
         return job;
     }
 
+    // Publish a draft job
+    async publish(userId: string, jobId: string) {
+        const recruiter =
+            await this.prisma.recruiter.findUnique({
+                where: {
+                    userId,
+                },
+                select: {
+                    companyId: true,
+                },
+            });
+
+        if (!recruiter) {
+            throw new ForbiddenException(
+                'Only recruiters can publish jobs',
+            );
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException(
+                'Recruiter is not assigned to a company',
+            );
+        }
+
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                companyId: recruiter.companyId,
+            },
+            select: {
+                id: true,
+                status: true,
+            },
+        });
+
+        if (!job) {
+            throw new NotFoundException(
+                'Job not found',
+            );
+        }
+
+        if (job.status !== 'DRAFT') {
+            throw new BadRequestException(
+                'Only draft jobs can be published',
+            );
+        }
+
+        return this.prisma.job.update({
+            where: {
+                id: job.id,
+            },
+            data: {
+                status: 'PUBLISHED',
+                publishedAt: new Date(),
+            },
+        });
+    }
+
+    // Close a published job
+    async close(userId: string, jobId: string) {
+        const recruiter =
+            await this.prisma.recruiter.findUnique({
+                where: {
+                    userId,
+                },
+                select: {
+                    companyId: true,
+                },
+            });
+
+        if (!recruiter) {
+            throw new ForbiddenException(
+                'Only recruiters can close jobs',
+            );
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException(
+                'Recruiter is not assigned to a company',
+            );
+        }
+
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                companyId: recruiter.companyId,
+            },
+            select: {
+                id: true,
+                status: true,
+            },
+        });
+
+        if (!job) {
+            throw new NotFoundException(
+                'Job not found',
+            );
+        }
+
+        if (job.status !== 'PUBLISHED') {
+            throw new BadRequestException(
+                'Only published jobs can be closed',
+            );
+        }
+
+        return this.prisma.job.update({
+            where: {
+                id: job.id,
+            },
+            data: {
+                status: 'CLOSED',
+            },
+        });
+    }
+
     // Get requirements for a job
     async getRequirements(
         userId: string,

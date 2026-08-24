@@ -139,6 +139,82 @@ export class JobsController {
         );
     }
 
+    // Publish a draft job
+    @Post(':id/publish')
+    @ApiOperation({
+        summary: 'Publish a job',
+        description:
+            'Publishes a draft job belonging to the authenticated recruiter company.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Job published successfully.',
+    })
+    @ApiResponse({
+        status: 400,
+        description:
+            'Job is not in DRAFT status or recruiter is not assigned to a company.',
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Authentication required.',
+    })
+    @ApiResponse({
+        status: 403,
+        description: 'User is not an authorized recruiter.',
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Job not found.',
+    })
+    publish(
+        @Req() req: AuthenticatedRequest,
+        @Param('id') jobId: string,
+    ) {
+        return this.jobsService.publish(
+            req.user.id,
+            jobId,
+        );
+    }
+
+    // Close a published job
+    @Post(':id/close')
+    @ApiOperation({
+        summary: 'Close a job',
+        description:
+            'Closes a published job belonging to the authenticated recruiter company.',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Job closed successfully.',
+    })
+    @ApiResponse({
+        status: 400,
+        description:
+            'Job is not in PUBLISHED status or recruiter is not assigned to a company.',
+    })
+    @ApiResponse({
+        status: 401,
+        description: 'Authentication required.',
+    })
+    @ApiResponse({
+        status: 403,
+        description: 'User is not an authorized recruiter.',
+    })
+    @ApiResponse({
+        status: 404,
+        description: 'Job not found.',
+    })
+    close(
+        @Req() req: AuthenticatedRequest,
+        @Param('id') jobId: string,
+    ) {
+        return this.jobsService.close(
+            req.user.id,
+            jobId,
+        );
+    }
+
     // Retrieve a single job by ID
     @Get(':id')
     @ApiOperation({

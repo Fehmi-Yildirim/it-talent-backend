@@ -9,9 +9,16 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { Request } from 'express';
-
 import { UserRole } from '../../generated/prisma/enums';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -35,6 +42,31 @@ export class UsersController {
   @Get('me')
   getMe(@Req() req: AuthenticatedRequest) {
     return this.usersService.getMe(req.user.id);
+  }
+
+  @Roles(UserRole.CANDIDATE)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Get('me/candidate')
+  @ApiTags('Candidate')
+  @ApiOperation({
+    summary: 'Get my candidate profile',
+    description:
+      'Returns the candidate profile of the authenticated candidate.',
+  })
+  @ApiOkResponse({
+    description: 'Candidate profile returned successfully.',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Authentication is required.',
+  })
+  @ApiForbiddenResponse({
+    description: 'Only candidates can access a candidate profile.',
+  })
+  @ApiNotFoundResponse({
+    description: 'Candidate profile not found.',
+  })
+  getMyCandidateProfile(@Req() req: AuthenticatedRequest) {
+    return this.usersService.getMyCandidateProfile(req.user.id);
   }
 
   @UseGuards(JwtAuthGuard)

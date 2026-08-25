@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
+
 import { PrismaService } from '../database/prisma.service';
 import { CreateCandidateProfileDto } from './dto/create-candidate-profile.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -60,12 +61,42 @@ export class UsersService {
     return user;
   }
 
+  async getMyCandidateProfile(userId: string) {
+    const candidate = await this.prisma.candidate.findUnique({
+      where: {
+        userId,
+      },
+      select: {
+        id: true,
+        userId: true,
+        headline: true,
+        summary: true,
+        location: true,
+        salaryMin: true,
+        salaryMax: true,
+        currency: true,
+        availabilityDate: true,
+        remotePreference: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!candidate) {
+      throw new NotFoundException('Candidate profile not found');
+    }
+
+    return candidate;
+  }
+
   async createCandidateProfile(
     userId: string,
     dto: CreateCandidateProfileDto,
   ) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: {
+        id: userId,
+      },
       select: {
         id: true,
         role: true,
@@ -83,7 +114,9 @@ export class UsersService {
     }
 
     const existingCandidate = await this.prisma.candidate.findUnique({
-      where: { userId },
+      where: {
+        userId,
+      },
     });
 
     if (existingCandidate) {
@@ -111,8 +144,12 @@ export class UsersService {
     const email = dto.email.trim().toLowerCase();
 
     const existingUser = await this.prisma.user.findUnique({
-      where: { email },
-      select: { id: true },
+      where: {
+        email,
+      },
+      select: {
+        id: true,
+      },
     });
 
     if (existingUser) {
@@ -157,7 +194,9 @@ export class UsersService {
 
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
       select: {
         id: true,
         email: true,
@@ -189,8 +228,12 @@ export class UsersService {
       const email = dto.email.trim().toLowerCase();
 
       const existingUser = await this.prisma.user.findUnique({
-        where: { email },
-        select: { id: true },
+        where: {
+          email,
+        },
+        select: {
+          id: true,
+        },
       });
 
       if (existingUser && existingUser.id !== id) {
@@ -208,7 +251,9 @@ export class UsersService {
       // Prevent the last ADMIN from losing the ADMIN role.
       if (user.role === 'ADMIN' && dto.role !== 'ADMIN') {
         const adminCount = await this.prisma.user.count({
-          where: { role: 'ADMIN' },
+          where: {
+            role: 'ADMIN',
+          },
         });
 
         if (adminCount <= 1) {
@@ -226,7 +271,9 @@ export class UsersService {
     }
 
     return this.prisma.user.update({
-      where: { id },
+      where: {
+        id,
+      },
       data,
       select: {
         id: true,
@@ -239,13 +286,15 @@ export class UsersService {
     });
   }
 
-  async remove(id: string, requestingUserId: string) {
+  async remove(id: string, _requestingUserId: string) {
     const user = await this.findOne(id);
 
     // Never allow the last ADMIN to be deleted.
     if (user.role === 'ADMIN') {
       const adminCount = await this.prisma.user.count({
-        where: { role: 'ADMIN' },
+        where: {
+          role: 'ADMIN',
+        },
       });
 
       if (adminCount <= 1) {
@@ -256,7 +305,9 @@ export class UsersService {
     }
 
     return this.prisma.user.delete({
-      where: { id },
+      where: {
+        id,
+      },
       select: {
         id: true,
         email: true,

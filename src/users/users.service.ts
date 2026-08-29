@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 
+import { UserRole } from '../../generated/prisma/enums';
 import { PrismaService } from '../database/prisma.service';
-import { CreateCandidateProfileDto } from './dto/create-candidate-profile.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
@@ -27,30 +27,6 @@ export class UsersService {
         status: true,
         createdAt: true,
         updatedAt: true,
-        candidate: {
-          select: {
-            id: true,
-            headline: true,
-            summary: true,
-            location: true,
-            salaryMin: true,
-            salaryMax: true,
-            currency: true,
-            availabilityDate: true,
-            remotePreference: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-        recruiter: {
-          select: {
-            id: true,
-            companyId: true,
-            jobTitle: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
       },
     });
 
@@ -59,85 +35,6 @@ export class UsersService {
     }
 
     return user;
-  }
-
-  async getMyCandidateProfile(userId: string) {
-    const candidate = await this.prisma.candidate.findUnique({
-      where: {
-        userId,
-      },
-      select: {
-        id: true,
-        userId: true,
-        headline: true,
-        summary: true,
-        location: true,
-        salaryMin: true,
-        salaryMax: true,
-        currency: true,
-        availabilityDate: true,
-        remotePreference: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    if (!candidate) {
-      throw new NotFoundException('Candidate profile not found');
-    }
-
-    return candidate;
-  }
-
-  async createCandidateProfile(
-    userId: string,
-    dto: CreateCandidateProfileDto,
-  ) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
-      select: {
-        id: true,
-        role: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (user.role !== 'CANDIDATE') {
-      throw new ForbiddenException(
-        'Only candidates can create a candidate profile',
-      );
-    }
-
-    const existingCandidate = await this.prisma.candidate.findUnique({
-      where: {
-        userId,
-      },
-    });
-
-    if (existingCandidate) {
-      throw new ConflictException('Candidate profile already exists');
-    }
-
-    return this.prisma.candidate.create({
-      data: {
-        userId,
-        headline: dto.headline,
-        summary: dto.summary,
-        location: dto.location,
-        salaryMin: dto.salaryMin,
-        salaryMax: dto.salaryMax,
-        currency: dto.currency,
-        availabilityDate: dto.availabilityDate
-          ? new Date(dto.availabilityDate)
-          : undefined,
-        remotePreference: dto.remotePreference,
-      },
-    });
   }
 
   async create(dto: CreateUserDto) {
@@ -192,7 +89,11 @@ export class UsersService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(
+    id: string,
+    requestingUserId: string,
+    requestingUserRole: UserRole,
+  ) {
     const user = await this.prisma.user.findUnique({
       where: {
         id,
@@ -211,11 +112,29 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
+    const isAdmin = requestingUserRole === UserRole.ADMIN;
+    const isOwner = requestingUserId === id;
+
+    if (!isAdmin && !isOwner) {
+      throw new ForbiddenException(
+        'You do not have permission to access this user',
+      );
+    }
+
     return user;
   }
 
-  async update(id: string, dto: UpdateUserDto) {
-    const user = await this.findOne(id);
+  async update(
+    id: string,
+    dto: UpdateUserDto,
+    requestingUserId: string,
+    requestingUserRole: UserRole,
+  ) {
+    const user = await this.findOne(
+      id,
+      requestingUserId,
+      requestingUserRole,
+    );
 
     const data: {
       email?: string;
@@ -248,11 +167,18 @@ export class UsersService {
     }
 
     if (dto.role !== undefined) {
+      // Only ADMIN users may change roles.
+      if (requestingUserRole !== UserRole.ADMIN) {
+        throw new ForbiddenException(
+          'Only administrators can change user roles',
+        );
+      }
+
       // Prevent the last ADMIN from losing the ADMIN role.
-      if (user.role === 'ADMIN' && dto.role !== 'ADMIN') {
+      if (user.role === UserRole.ADMIN && dto.role !== UserRole.ADMIN) {
         const adminCount = await this.prisma.user.count({
           where: {
-            role: 'ADMIN',
+            role: UserRole.ADMIN,
           },
         });
 
@@ -267,6 +193,13 @@ export class UsersService {
     }
 
     if (dto.status !== undefined) {
+      // Only ADMIN users may change user status.
+      if (requestingUserRole !== UserRole.ADMIN) {
+        throw new ForbiddenException(
+          'Only administrators can change user status',
+        );
+      }
+
       data.status = dto.status;
     }
 
@@ -287,13 +220,17 @@ export class UsersService {
   }
 
   async remove(id: string, _requestingUserId: string) {
-    const user = await this.findOne(id);
+    const user = await this.findOne(
+      id,
+      _requestingUserId,
+      UserRole.ADMIN,
+    );
 
     // Never allow the last ADMIN to be deleted.
-    if (user.role === 'ADMIN') {
+    if (user.role === UserRole.ADMIN) {
       const adminCount = await this.prisma.user.count({
         where: {
-          role: 'ADMIN',
+          role: UserRole.ADMIN,
         },
       });
 

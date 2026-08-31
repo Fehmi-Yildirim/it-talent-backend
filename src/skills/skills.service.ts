@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+    ConflictException,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { GetSkillsDto } from './dto/get-skills.dto';
 import { CreateSkillDto } from './dto/create-skill.dto';
@@ -77,7 +81,9 @@ export class SkillsService {
         });
 
         if (existingSkill) {
-            throw new ConflictException('Skill with this slug already exists');
+            throw new ConflictException(
+                'Skill with this slug already exists',
+            );
         }
 
         return this.prisma.skill.create({
@@ -101,7 +107,9 @@ export class SkillsService {
             });
 
             if (existingSkill && existingSkill.id !== id) {
-                throw new ConflictException('Skill with this slug already exists');
+                throw new ConflictException(
+                    'Skill with this slug already exists',
+                );
             }
         }
 
@@ -109,7 +117,9 @@ export class SkillsService {
             where: {
                 id,
             },
-            data: { ...dto },
+            data: {
+                ...dto,
+            },
         });
     }
 

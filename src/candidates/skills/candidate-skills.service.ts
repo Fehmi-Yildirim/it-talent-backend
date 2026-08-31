@@ -6,13 +6,16 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../../database/prisma.service';
-import { CreateCandidateSkillDto } from './dto/create-candidate-skill.dto';
-import { UpdateCandidateSkillDto } from './dto/update-candidate-skill.dto';
 import { CandidateSkillSource } from '../../../generated/prisma/enums';
+
+import { CreateCandidateSkillDto } from '../../candidates/skills/dto/create-candidate-skill.dto';
+import { UpdateCandidateSkillDto } from '../../candidates/skills/dto/update-candidate-skill.dto';
 
 @Injectable()
 export class CandidateSkillsService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+    ) { }
 
     async findMine(userId: string) {
         const candidate = await this.prisma.candidate.findUnique({
@@ -25,7 +28,9 @@ export class CandidateSkillsService {
         });
 
         if (!candidate) {
-            throw new NotFoundException('Candidate profile not found');
+            throw new NotFoundException(
+                'Candidate profile not found',
+            );
         }
 
         return this.prisma.candidateSkill.findMany({
@@ -49,9 +54,14 @@ export class CandidateSkillsService {
         });
     }
 
-    async create(userId: string, dto: CreateCandidateSkillDto) {
+    async create(
+        userId: string,
+        dto: CreateCandidateSkillDto,
+    ) {
         const user = await this.prisma.user.findUnique({
-            where: { id: userId },
+            where: {
+                id: userId,
+            },
             select: {
                 id: true,
                 role: true,
@@ -69,18 +79,27 @@ export class CandidateSkillsService {
         }
 
         const candidate = await this.prisma.candidate.findUnique({
-            where: { userId },
+            where: {
+                userId,
+            },
             select: {
                 id: true,
             },
         });
 
         if (!candidate) {
-            throw new NotFoundException('Candidate profile not found');
+            throw new NotFoundException(
+                'Candidate profile not found',
+            );
         }
 
+        /*
+         * skillId identifies the global Skill resource.
+         */
         const skill = await this.prisma.skill.findUnique({
-            where: { id: dto.skillId },
+            where: {
+                id: dto.skillId,
+            },
             select: {
                 id: true,
                 name: true,
@@ -124,29 +143,41 @@ export class CandidateSkillsService {
 
     async updateMine(
         userId: string,
-        skillId: string,
+        candidateSkillId: string,
         dto: UpdateCandidateSkillDto,
     ) {
         const candidate = await this.prisma.candidate.findUnique({
-            where: { userId },
-            select: { id: true },
-        });
-
-        if (!candidate) {
-            throw new NotFoundException('Candidate profile not found');
-        }
-
-        const candidateSkill = await this.prisma.candidateSkill.findUnique({
             where: {
-                candidateId_skillId: {
-                    candidateId: candidate.id,
-                    skillId,
-                },
+                userId,
+            },
+            select: {
+                id: true,
             },
         });
 
+        if (!candidate) {
+            throw new NotFoundException(
+                'Candidate profile not found',
+            );
+        }
+
+        /*
+         * id identifies the CandidateSkill resource.
+         *
+         * Ownership is enforced by candidateId.
+         */
+        const candidateSkill =
+            await this.prisma.candidateSkill.findFirst({
+                where: {
+                    id: candidateSkillId,
+                    candidateId: candidate.id,
+                },
+            });
+
         if (!candidateSkill) {
-            throw new NotFoundException('Candidate skill not found');
+            throw new NotFoundException(
+                'Candidate skill not found',
+            );
         }
 
         return this.prisma.candidateSkill.update({
@@ -171,30 +202,45 @@ export class CandidateSkillsService {
         });
     }
 
-    async removeMine(userId: string, skillId: string) {
+    async removeMine(
+        userId: string,
+        candidateSkillId: string,
+    ) {
         const candidate = await this.prisma.candidate.findUnique({
-            where: { userId },
-            select: { id: true },
-        });
-
-        if (!candidate) {
-            throw new NotFoundException('Candidate profile not found');
-        }
-
-        const candidateSkill = await this.prisma.candidateSkill.findUnique({
             where: {
-                candidateId_skillId: {
-                    candidateId: candidate.id,
-                    skillId,
-                },
+                userId,
             },
             select: {
                 id: true,
             },
         });
 
+        if (!candidate) {
+            throw new NotFoundException(
+                'Candidate profile not found',
+            );
+        }
+
+        /*
+         * id identifies the CandidateSkill resource.
+         *
+         * Ownership is enforced by candidateId.
+         */
+        const candidateSkill =
+            await this.prisma.candidateSkill.findFirst({
+                where: {
+                    id: candidateSkillId,
+                    candidateId: candidate.id,
+                },
+                select: {
+                    id: true,
+                },
+            });
+
         if (!candidateSkill) {
-            throw new NotFoundException('Candidate skill not found');
+            throw new NotFoundException(
+                'Candidate skill not found',
+            );
         }
 
         await this.prisma.candidateSkill.delete({
@@ -208,4 +254,3 @@ export class CandidateSkillsService {
         };
     }
 }
-

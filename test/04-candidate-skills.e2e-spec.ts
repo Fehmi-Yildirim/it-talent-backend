@@ -36,7 +36,9 @@ describe('04 - Candidate Skills (e2e)', () => {
          */
         const skillsResponse = await request(app.getHttpServer())
             .get('/api/v1/skills')
+            .set('Authorization', `Bearer ${accessToken}`)
             .expect(200);
+
 
         expect(Array.isArray(skillsResponse.body)).toBe(true);
         expect(skillsResponse.body.length).toBeGreaterThan(0);

@@ -60,21 +60,20 @@ async function main() {
             const passwordHash =
                 await argon2.hash(adminPassword);
 
-            const admin =
-                await prisma.user.create({
-                    data: {
-                        email: adminEmail,
-                        passwordHash,
-                        role: 'ADMIN',
-                        status: 'ACTIVE',
-                    },
-                    select: {
-                        id: true,
-                        email: true,
-                        role: true,
-                        status: true,
-                    },
-                });
+            const admin = await prisma.user.create({
+                data: {
+                    email: adminEmail,
+                    passwordHash,
+                    role: 'ADMIN',
+                    status: 'ACTIVE',
+                },
+                select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                    status: true,
+                },
+            });
 
             console.log('Bootstrap ADMIN created:');
             console.log(admin);
@@ -90,29 +89,28 @@ async function main() {
         const candidatePasswordHash =
             await argon2.hash(candidatePassword);
 
-        const candidate =
-            await prisma.user.upsert({
-                where: {
-                    email: candidateEmail,
-                },
-                update: {
-                    passwordHash: candidatePasswordHash,
-                    role: 'CANDIDATE',
-                    status: 'ACTIVE',
-                },
-                create: {
-                    email: candidateEmail,
-                    passwordHash: candidatePasswordHash,
-                    role: 'CANDIDATE',
-                    status: 'ACTIVE',
-                },
-                select: {
-                    id: true,
-                    email: true,
-                    role: true,
-                    status: true,
-                },
-            });
+        const candidate = await prisma.user.upsert({
+            where: {
+                email: candidateEmail,
+            },
+            update: {
+                passwordHash: candidatePasswordHash,
+                role: 'CANDIDATE',
+                status: 'ACTIVE',
+            },
+            create: {
+                email: candidateEmail,
+                passwordHash: candidatePasswordHash,
+                role: 'CANDIDATE',
+                status: 'ACTIVE',
+            },
+            select: {
+                id: true,
+                email: true,
+                role: true,
+                status: true,
+            },
+        });
 
         console.log('E2E CANDIDATE ready:');
         console.log(candidate);
@@ -157,8 +155,11 @@ async function main() {
         // E2E RECRUITER
         // ------------------------------------------------------------
 
-        const recruiterEmail = 'recruiter@example.com';
-        const recruiterPassword = 'Recruiter12345!';
+        const recruiterEmail =
+            'recruiter@example.com';
+
+        const recruiterPassword =
+            'Recruiter12345!';
 
         const recruiterPasswordHash =
             await argon2.hash(recruiterPassword);
@@ -169,13 +170,15 @@ async function main() {
                     email: recruiterEmail,
                 },
                 update: {
-                    passwordHash: recruiterPasswordHash,
+                    passwordHash:
+                        recruiterPasswordHash,
                     role: 'RECRUITER',
                     status: 'ACTIVE',
                 },
                 create: {
                     email: recruiterEmail,
-                    passwordHash: recruiterPasswordHash,
+                    passwordHash:
+                        recruiterPasswordHash,
                     role: 'RECRUITER',
                     status: 'ACTIVE',
                 },
@@ -189,38 +192,45 @@ async function main() {
 
         console.log('E2E RECRUITER ready:');
         console.log(recruiterUser);
-        console.log(`Email: ${recruiterEmail}`);
-        console.log(`Password: ${recruiterPassword}`);
+        console.log(
+            `Email: ${recruiterEmail}`,
+        );
+        console.log(
+            `Password: ${recruiterPassword}`,
+        );
 
         // ------------------------------------------------------------
-        // E2E COMPANY
+        // E2E RECRUITER COMPANY
         // ------------------------------------------------------------
 
-        const company = await prisma.company.upsert({
-            where: {
-                slug: 'it-talent-test-company',
-            },
-            update: {
-                name: 'IT Talent Test Company',
-                website: 'https://example.com',
-                description:
-                    'Test company for recruiter and job E2E testing.',
-                location: 'Amsterdam',
-            },
-            create: {
-                name: 'IT Talent Test Company',
-                slug: 'it-talent-test-company',
-                website: 'https://example.com',
-                description:
-                    'Test company for recruiter and job E2E testing.',
-                location: 'Amsterdam',
-            },
-            select: {
-                id: true,
-                name: true,
-                slug: true,
-            },
-        });
+        const company =
+            await prisma.company.upsert({
+                where: {
+                    slug: 'e2e-test-company',
+                },
+                update: {
+                    name: 'E2E Test Company',
+                    website:
+                        'https://example.com',
+                    description:
+                        'Company used for recruiter job tests.',
+                    location: 'Amsterdam',
+                },
+                create: {
+                    name: 'E2E Test Company',
+                    slug: 'e2e-test-company',
+                    website:
+                        'https://example.com',
+                    description:
+                        'Company used for recruiter job tests.',
+                    location: 'Amsterdam',
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                },
+            });
 
         console.log('E2E COMPANY ready:');
         console.log(company);
@@ -262,3 +272,4 @@ main().catch((error) => {
     console.error(error);
     process.exit(1);
 });
+

@@ -1,4 +1,5 @@
 import {
+    IsArray,
     IsEnum,
     IsInt,
     IsOptional,
@@ -7,7 +8,11 @@ import {
     Min,
 } from 'class-validator';
 
-import { EmploymentType, WorkMode } from '../../../generated/prisma/client';
+import {
+    EmploymentType,
+    WorkMode,
+} from '../../../generated/prisma/client';
+
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateJobDto {
@@ -42,6 +47,7 @@ export class UpdateJobDto {
     location?: string;
 
     @IsOptional()
+    @IsArray()
     @IsUUID('4', { each: true })
     @ApiPropertyOptional({
         description:
@@ -50,6 +56,7 @@ export class UpdateJobDto {
     requiredSkillIds?: string[];
 
     @IsOptional()
+    @IsArray()
     @IsUUID('4', { each: true })
     @ApiPropertyOptional({
         description:

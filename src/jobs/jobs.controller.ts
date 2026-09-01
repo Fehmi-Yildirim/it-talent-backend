@@ -1,3 +1,4 @@
+
 import {
     Body,
     Controller,
@@ -9,60 +10,27 @@ import {
     Req,
     UseGuards,
 } from '@nestjs/common';
-
-import {
-    ApiBearerAuth,
-    ApiOperation,
-    ApiResponse,
-    ApiTags,
-} from '@nestjs/swagger';
-import { Request } from 'express';
-
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { JwtStrategy } from '../auth/strategies/jwt.strategy';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
-import { JobsService } from './jobs.service';
 import { UpdateJobRequirementsDto } from './dto/update-job-requirements.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CreateJobRequirementDto } from './dto/create-job-requirement.dto';
+import { UpdateJobRequirementDto } from './dto/update-job-requirement.dto';
 
-type AuthenticatedRequest = Request & {
-    user: Awaited<ReturnType<JwtStrategy['validate']>>;
-};
-
-@ApiTags('Jobs')
 @ApiBearerAuth('access-token')
-@Controller('jobs')
 @UseGuards(JwtAuthGuard)
+@Controller('jobs')
 export class JobsController {
     constructor(
         private readonly jobsService: JobsService,
     ) { }
 
-    // Create a new job
+    // Create job
     @Post()
-    @ApiOperation({
-        summary: 'Create a job',
-        description:
-            'Creates a draft job for the authenticated recruiter.',
-    })
-    @ApiResponse({
-        status: 201,
-        description: 'Job created successfully.',
-    })
-    @ApiResponse({
-        status: 400,
-        description: 'Invalid job data.',
-    })
-    @ApiResponse({
-        status: 401,
-        description: 'Authentication required.',
-    })
-    @ApiResponse({
-        status: 403,
-        description: 'User is not an authorized recruiter.',
-    })
-    create(
-        @Req() req: AuthenticatedRequest,
+    async create(
+        @Req() req: any,
         @Body() dto: CreateJobDto,
     ) {
         return this.jobsService.create(
@@ -71,65 +39,33 @@ export class JobsController {
         );
     }
 
-    // Retrieve all jobs belonging to the recruiter company
+    // Get all jobs
     @Get()
-    @ApiOperation({
-        summary: 'Get company jobs',
-        description:
-            'Returns all jobs belonging to the authenticated recruiter company.',
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Jobs retrieved successfully.',
-    })
-    @ApiResponse({
-        status: 400,
-        description:
-            'Recruiter is not assigned to a company.',
-    })
-    @ApiResponse({
-        status: 401,
-        description: 'Authentication required.',
-    })
-    @ApiResponse({
-        status: 403,
-        description:
-            'User is not an authorized recruiter.',
-    })
-    getAll(@Req() req: AuthenticatedRequest) {
-        return this.jobsService.getAll(req.user.id);
+    async getAll(
+        @Req() req: any,
+    ) {
+        return this.jobsService.getAll(
+            req.user.id,
+        );
     }
 
-    // Update an existing job
-    @Patch(':id')
-    @ApiOperation({
-        summary: 'Update a job',
-        description:
-            'Updates a job belonging to the authenticated recruiter company.',
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Job updated successfully.',
-    })
-    @ApiResponse({
-        status: 400,
-        description: 'Invalid job data.',
-    })
-    @ApiResponse({
-        status: 401,
-        description: 'Authentication required.',
-    })
-    @ApiResponse({
-        status: 403,
-        description: 'User is not an authorized recruiter.',
-    })
-    @ApiResponse({
-        status: 404,
-        description: 'Job not found.',
-    })
-    update(
-        @Req() req: AuthenticatedRequest,
-        @Param('id') jobId: string,
+    // Get job by ID
+    @Get(':jobId')
+    async getById(
+        @Req() req: any,
+        @Param('jobId') jobId: string,
+    ) {
+        return this.jobsService.getById(
+            req.user.id,
+            jobId,
+        );
+    }
+
+    // Update job
+    @Patch(':jobId')
+    async update(
+        @Req() req: any,
+        @Param('jobId') jobId: string,
         @Body() dto: UpdateJobDto,
     ) {
         return this.jobsService.update(
@@ -139,37 +75,11 @@ export class JobsController {
         );
     }
 
-    // Publish a draft job
-    @Post(':id/publish')
-    @ApiOperation({
-        summary: 'Publish a job',
-        description:
-            'Publishes a draft job belonging to the authenticated recruiter company.',
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Job published successfully.',
-    })
-    @ApiResponse({
-        status: 400,
-        description:
-            'Job is not in DRAFT status or recruiter is not assigned to a company.',
-    })
-    @ApiResponse({
-        status: 401,
-        description: 'Authentication required.',
-    })
-    @ApiResponse({
-        status: 403,
-        description: 'User is not an authorized recruiter.',
-    })
-    @ApiResponse({
-        status: 404,
-        description: 'Job not found.',
-    })
-    publish(
-        @Req() req: AuthenticatedRequest,
-        @Param('id') jobId: string,
+    // Publish job
+    @Post(':jobId/publish')
+    async publish(
+        @Req() req: any,
+        @Param('jobId') jobId: string,
     ) {
         return this.jobsService.publish(
             req.user.id,
@@ -177,37 +87,11 @@ export class JobsController {
         );
     }
 
-    // Close a published job
-    @Post(':id/close')
-    @ApiOperation({
-        summary: 'Close a job',
-        description:
-            'Closes a published job belonging to the authenticated recruiter company.',
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Job closed successfully.',
-    })
-    @ApiResponse({
-        status: 400,
-        description:
-            'Job is not in PUBLISHED status or recruiter is not assigned to a company.',
-    })
-    @ApiResponse({
-        status: 401,
-        description: 'Authentication required.',
-    })
-    @ApiResponse({
-        status: 403,
-        description: 'User is not an authorized recruiter.',
-    })
-    @ApiResponse({
-        status: 404,
-        description: 'Job not found.',
-    })
-    close(
-        @Req() req: AuthenticatedRequest,
-        @Param('id') jobId: string,
+    // Close job
+    @Post(':jobId/close')
+    async close(
+        @Req() req: any,
+        @Param('jobId') jobId: string,
     ) {
         return this.jobsService.close(
             req.user.id,
@@ -215,71 +99,11 @@ export class JobsController {
         );
     }
 
-    // Retrieve a single job by ID
-    @Get(':id')
-    @ApiOperation({
-        summary: 'Get a job by ID',
-        description:
-            'Returns a job belonging to the authenticated recruiter company.',
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Job retrieved successfully.',
-    })
-    @ApiResponse({
-        status: 400,
-        description:
-            'Recruiter is not assigned to a company.',
-    })
-    @ApiResponse({
-        status: 401,
-        description: 'Authentication required.',
-    })
-    @ApiResponse({
-        status: 403,
-        description:
-            'User is not an authorized recruiter.',
-    })
-    @ApiResponse({
-        status: 404,
-        description: 'Job not found.',
-    })
-    getById(
-        @Req() req: AuthenticatedRequest,
-        @Param('id') jobId: string,
-    ) {
-        return this.jobsService.getById(
-            req.user.id,
-            jobId,
-        );
-    }
-
-    // Retrieve requirements for a job
-    @Get(':id/requirements')
-    @ApiOperation({
-        summary: 'Get job requirements',
-        description:
-            'Returns the required and preferred skills associated with a job.',
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Job requirements retrieved successfully.',
-    })
-    @ApiResponse({
-        status: 401,
-        description: 'Authentication required.',
-    })
-    @ApiResponse({
-        status: 403,
-        description: 'User is not an authorized recruiter.',
-    })
-    @ApiResponse({
-        status: 404,
-        description: 'Job not found.',
-    })
-    getRequirements(
-        @Req() req: AuthenticatedRequest,
-        @Param('id') jobId: string,
+    // Get job requirements
+    @Get(':jobId/requirements')
+    async getRequirements(
+        @Req() req: any,
+        @Param('jobId') jobId: string,
     ) {
         return this.jobsService.getRequirements(
             req.user.id,
@@ -287,36 +111,11 @@ export class JobsController {
         );
     }
 
-    // Replace all requirements for a job
-    @Patch(':id/requirements')
-    @ApiOperation({
-        summary: 'Update job requirements',
-        description:
-            'Replaces the complete set of required and preferred skills for a job.',
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Job requirements updated successfully.',
-    })
-    @ApiResponse({
-        status: 400,
-        description: 'Invalid skill or requirement data.',
-    })
-    @ApiResponse({
-        status: 401,
-        description: 'Authentication required.',
-    })
-    @ApiResponse({
-        status: 403,
-        description: 'User is not an authorized recruiter.',
-    })
-    @ApiResponse({
-        status: 404,
-        description: 'Job not found.',
-    })
-    updateRequirements(
-        @Req() req: AuthenticatedRequest,
-        @Param('id') jobId: string,
+    // Replace all job requirements
+    @Patch(':jobId/requirements')
+    async updateRequirements(
+        @Req() req: any,
+        @Param('jobId') jobId: string,
         @Body() dto: UpdateJobRequirementsDto,
     ) {
         return this.jobsService.updateRequirements(
@@ -326,32 +125,11 @@ export class JobsController {
         );
     }
 
-    @Delete(':id/requirements/:skillId')
-    @ApiOperation({
-        summary: 'Remove a job requirement',
-        description:
-            'Removes a required or preferred skill from a job.',
-    })
-    @ApiResponse({
-        status: 200,
-        description: 'Job requirement removed successfully.',
-    })
-    @ApiResponse({
-        status: 401,
-        description: 'Authentication required.',
-    })
-    @ApiResponse({
-        status: 403,
-        description: 'User is not an authorized recruiter.',
-    })
-    @ApiResponse({
-        status: 404,
-        description:
-            'Job or job requirement not found.',
-    })
-    removeRequirement(
-        @Req() req: AuthenticatedRequest,
-        @Param('id') jobId: string,
+    // Remove one job requirement
+    @Delete(':jobId/requirements/:skillId')
+    async removeRequirement(
+        @Req() req: any,
+        @Param('jobId') jobId: string,
         @Param('skillId') skillId: string,
     ) {
         return this.jobsService.removeRequirement(
@@ -360,4 +138,36 @@ export class JobsController {
             skillId,
         );
     }
+
+
+    // Add one job requirement
+    @Post(':jobId/requirements')
+    async createRequirement(
+        @Req() req: any,
+        @Param('jobId') jobId: string,
+        @Body() dto: CreateJobRequirementDto,
+    ) {
+        return this.jobsService.createRequirement(
+            req.user.id,
+            jobId,
+            dto,
+        );
+    }
+
+    // Update one job requirement
+    @Patch(':jobId/requirements/:requirementId')
+    async updateRequirement(
+        @Req() req: any,
+        @Param('jobId') jobId: string,
+        @Param('requirementId') requirementId: string,
+        @Body() dto: UpdateJobRequirementDto,
+    ) {
+        return this.jobsService.updateRequirement(
+            req.user.id,
+            jobId,
+            requirementId,
+            dto,
+        );
+    }
+
 }

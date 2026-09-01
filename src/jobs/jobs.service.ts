@@ -1,8 +1,17 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+    BadRequestException,
+    ForbiddenException,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
+
 import { PrismaService } from '../database/prisma.service';
+
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 import { UpdateJobRequirementsDto } from './dto/update-job-requirements.dto';
+import { CreateJobRequirementDto } from './dto/create-job-requirement.dto';
+import { UpdateJobRequirementDto } from './dto/update-job-requirement.dto';
 
 @Injectable()
 export class JobsService {
@@ -48,8 +57,11 @@ export class JobsService {
             );
         }
 
-        const requiredSkillIds = dto.requiredSkillIds ?? [];
-        const preferredSkillIds = dto.preferredSkillIds ?? [];
+        const requiredSkillIds =
+            dto.requiredSkillIds ?? [];
+
+        const preferredSkillIds =
+            dto.preferredSkillIds ?? [];
 
         const hasDuplicates = (ids: string[]) =>
             new Set(ids).size !== ids.length;
@@ -145,7 +157,7 @@ export class JobsService {
         });
     }
 
-    // Get All Jobs
+    // Get all jobs
     async getAll(userId: string) {
         const recruiter =
             await this.prisma.recruiter.findUnique({
@@ -186,8 +198,11 @@ export class JobsService {
         });
     }
 
-    // Get by ID
-    async getById(userId: string, jobId: string) {
+    // Get job by ID
+    async getById(
+        userId: string,
+        jobId: string,
+    ) {
         const recruiter =
             await this.prisma.recruiter.findUnique({
                 where: {
@@ -210,19 +225,20 @@ export class JobsService {
             );
         }
 
-        const job = await this.prisma.job.findFirst({
-            where: {
-                id: jobId,
-                companyId: recruiter.companyId,
-            },
-            include: {
-                requirements: {
-                    include: {
-                        skill: true,
+        const job =
+            await this.prisma.job.findFirst({
+                where: {
+                    id: jobId,
+                    companyId: recruiter.companyId,
+                },
+                include: {
+                    requirements: {
+                        include: {
+                            skill: true,
+                        },
                     },
                 },
-            },
-        });
+            });
 
         if (!job) {
             throw new NotFoundException(
@@ -233,8 +249,191 @@ export class JobsService {
         return job;
     }
 
+    // Update an existing job
+    async update(
+        userId: string,
+        jobId: string,
+        dto: UpdateJobDto,
+    ) {
+        const recruiter =
+            await this.prisma.recruiter.findUnique({
+                where: {
+                    userId,
+                },
+                select: {
+                    companyId: true,
+                },
+            });
+
+        if (!recruiter) {
+            throw new ForbiddenException(
+                'Only recruiters can update jobs',
+            );
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException(
+                'Recruiter is not assigned to a company',
+            );
+        }
+
+        const job =
+            await this.prisma.job.findFirst({
+                where: {
+                    id: jobId,
+                    companyId: recruiter.companyId,
+                },
+                select: {
+                    id: true,
+                    companyId: true,
+                    salaryMin: true,
+                    salaryMax: true,
+                },
+            });
+
+        if (!job) {
+            throw new NotFoundException(
+                'Job not found',
+            );
+        }
+
+        // Validate resulting salary range.
+        const resultingSalaryMin =
+            dto.salaryMin !== undefined
+                ? dto.salaryMin
+                : job.salaryMin !== null
+                    ? Number(job.salaryMin)
+                    : undefined;
+
+        const resultingSalaryMax =
+            dto.salaryMax !== undefined
+                ? dto.salaryMax
+                : job.salaryMax !== null
+                    ? Number(job.salaryMax)
+                    : undefined;
+
+        if (
+            resultingSalaryMin !== undefined &&
+            resultingSalaryMax !== undefined &&
+            resultingSalaryMax < resultingSalaryMin
+        ) {
+            throw new BadRequestException(
+                'salaryMax cannot be lower than salaryMin',
+            );
+        }
+
+        const requiredSkillIds =
+            dto.requiredSkillIds;
+
+        const preferredSkillIds =
+            dto.preferredSkillIds;
+
+        const hasDuplicates = (ids: string[]) =>
+            new Set(ids).size !== ids.length;
+
+        if (
+            (requiredSkillIds !== undefined &&
+                hasDuplicates(requiredSkillIds)) ||
+            (preferredSkillIds !== undefined &&
+                hasDuplicates(preferredSkillIds))
+        ) {
+            throw new BadRequestException(
+                'A skill cannot be added to a job more than once',
+            );
+        }
+
+        // Validate required/preferred separation.
+        if (
+            requiredSkillIds !== undefined &&
+            preferredSkillIds !== undefined
+        ) {
+            const overlap =
+                requiredSkillIds.filter((skillId) =>
+                    preferredSkillIds.includes(skillId),
+                );
+
+            if (overlap.length > 0) {
+                throw new BadRequestException(
+                    'A skill cannot be both required and preferred',
+                );
+            }
+        }
+
+        const skillIds = [
+            ...new Set([
+                ...(requiredSkillIds ?? []),
+                ...(preferredSkillIds ?? []),
+            ]),
+        ];
+
+        // Validate referenced skills.
+        if (skillIds.length > 0) {
+            const skills =
+                await this.prisma.skill.findMany({
+                    where: {
+                        id: {
+                            in: skillIds,
+                        },
+                    },
+                    select: {
+                        id: true,
+                    },
+                });
+
+            if (skills.length !== skillIds.length) {
+                throw new BadRequestException(
+                    'One or more skills do not exist',
+                );
+            }
+        }
+
+        const {
+            requiredSkillIds: _requiredSkillIds,
+            preferredSkillIds: _preferredSkillIds,
+            ...jobData
+        } = dto;
+
+        const updateData = {
+            ...jobData,
+            ...(requiredSkillIds !== undefined ||
+                preferredSkillIds !== undefined
+                ? {
+                    requirements: {
+                        deleteMany: {},
+                        create: [
+                            ...(requiredSkillIds ?? []).map(
+                                (skillId) => ({
+                                    skillId,
+                                    required: true,
+                                    minimumLevel: 1,
+                                }),
+                            ),
+                            ...(preferredSkillIds ?? []).map(
+                                (skillId) => ({
+                                    skillId,
+                                    required: false,
+                                    minimumLevel: 1,
+                                }),
+                            ),
+                        ],
+                    },
+                }
+                : {}),
+        };
+
+        return this.prisma.job.update({
+            where: {
+                id: jobId,
+            },
+            data: updateData,
+        });
+    }
+
     // Publish a draft job
-    async publish(userId: string, jobId: string) {
+    async publish(
+        userId: string,
+        jobId: string,
+    ) {
         const recruiter =
             await this.prisma.recruiter.findUnique({
                 where: {
@@ -257,16 +456,17 @@ export class JobsService {
             );
         }
 
-        const job = await this.prisma.job.findFirst({
-            where: {
-                id: jobId,
-                companyId: recruiter.companyId,
-            },
-            select: {
-                id: true,
-                status: true,
-            },
-        });
+        const job =
+            await this.prisma.job.findFirst({
+                where: {
+                    id: jobId,
+                    companyId: recruiter.companyId,
+                },
+                select: {
+                    id: true,
+                    status: true,
+                },
+            });
 
         if (!job) {
             throw new NotFoundException(
@@ -292,7 +492,10 @@ export class JobsService {
     }
 
     // Close a published job
-    async close(userId: string, jobId: string) {
+    async close(
+        userId: string,
+        jobId: string,
+    ) {
         const recruiter =
             await this.prisma.recruiter.findUnique({
                 where: {
@@ -315,16 +518,17 @@ export class JobsService {
             );
         }
 
-        const job = await this.prisma.job.findFirst({
-            where: {
-                id: jobId,
-                companyId: recruiter.companyId,
-            },
-            select: {
-                id: true,
-                status: true,
-            },
-        });
+        const job =
+            await this.prisma.job.findFirst({
+                where: {
+                    id: jobId,
+                    companyId: recruiter.companyId,
+                },
+                select: {
+                    id: true,
+                    status: true,
+                },
+            });
 
         if (!job) {
             throw new NotFoundException(
@@ -412,7 +616,7 @@ export class JobsService {
         });
     }
 
-    // Update all requirements for a job
+    // Replace all job requirements
     async updateRequirements(
         userId: string,
         jobId: string,
@@ -562,7 +766,199 @@ export class JobsService {
         );
     }
 
-    // Delete all requirements for a job
+    // Add one job requirement
+    async createRequirement(
+        userId: string,
+        jobId: string,
+        dto: CreateJobRequirementDto,
+    ) {
+        const recruiter =
+            await this.prisma.recruiter.findUnique({
+                where: {
+                    userId,
+                },
+                select: {
+                    companyId: true,
+                },
+            });
+
+        if (!recruiter) {
+            throw new ForbiddenException(
+                'Only recruiters can create job requirements',
+            );
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException(
+                'Recruiter is not assigned to a company',
+            );
+        }
+
+        const job =
+            await this.prisma.job.findFirst({
+                where: {
+                    id: jobId,
+                    companyId: recruiter.companyId,
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+        if (!job) {
+            throw new NotFoundException(
+                'Job not found',
+            );
+        }
+
+        const skill =
+            await this.prisma.skill.findUnique({
+                where: {
+                    id: dto.skillId,
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+        if (!skill) {
+            throw new BadRequestException(
+                'Skill does not exist',
+            );
+        }
+
+        const existingRequirement =
+            await this.prisma.jobRequirement.findUnique({
+                where: {
+                    jobId_skillId: {
+                        jobId: job.id,
+                        skillId: dto.skillId,
+                    },
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+        if (existingRequirement) {
+            throw new BadRequestException(
+                'This skill is already a requirement for this job',
+            );
+        }
+
+        return this.prisma.jobRequirement.create({
+            data: {
+                jobId: job.id,
+                skillId: dto.skillId,
+                required: dto.required,
+                minimumLevel: dto.minimumLevel,
+            },
+            include: {
+                skill: true,
+            },
+        });
+    }
+
+    // Update one job requirement
+    async updateRequirement(
+        userId: string,
+        jobId: string,
+        requirementId: string,
+        dto: UpdateJobRequirementDto,
+    ) {
+        const recruiter =
+            await this.prisma.recruiter.findUnique({
+                where: {
+                    userId,
+                },
+                select: {
+                    companyId: true,
+                },
+            });
+
+        if (!recruiter) {
+            throw new ForbiddenException(
+                'Only recruiters can update job requirements',
+            );
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException(
+                'Recruiter is not assigned to a company',
+            );
+        }
+
+        const job =
+            await this.prisma.job.findFirst({
+                where: {
+                    id: jobId,
+                    companyId: recruiter.companyId,
+                },
+                select: {
+                    id: true,
+                },
+            });
+
+        if (!job) {
+            throw new NotFoundException(
+                'Job not found',
+            );
+        }
+
+        const requirement =
+            await this.prisma.jobRequirement.findFirst({
+                where: {
+                    id: requirementId,
+                    jobId: job.id,
+                },
+                select: {
+                    id: true,
+                    required: true,
+                    minimumLevel: true,
+                    skillId: true,
+                },
+            });
+
+        if (!requirement) {
+            throw new NotFoundException(
+                'Job requirement not found',
+            );
+        }
+
+        if (
+            dto.required === undefined &&
+            dto.minimumLevel === undefined
+        ) {
+            throw new BadRequestException(
+                'At least one field must be provided',
+            );
+        }
+
+        const updateData = {
+            ...(dto.required !== undefined
+                ? {
+                    required: dto.required,
+                }
+                : {}),
+            ...(dto.minimumLevel !== undefined
+                ? {
+                    minimumLevel: dto.minimumLevel,
+                }
+                : {}),
+        };
+
+        return this.prisma.jobRequirement.update({
+            where: {
+                id: requirement.id,
+            },
+            data: updateData,
+            include: {
+                skill: true,
+            },
+        });
+    }
+
+    // Remove one job requirement
     async removeRequirement(
         userId: string,
         jobId: string,
@@ -570,8 +966,12 @@ export class JobsService {
     ) {
         const recruiter =
             await this.prisma.recruiter.findUnique({
-                where: { userId },
-                select: { companyId: true },
+                where: {
+                    userId,
+                },
+                select: {
+                    companyId: true,
+                },
             });
 
         if (!recruiter) {
@@ -586,16 +986,21 @@ export class JobsService {
             );
         }
 
-        const job = await this.prisma.job.findFirst({
-            where: {
-                id: jobId,
-                companyId: recruiter.companyId,
-            },
-            select: { id: true },
-        });
+        const job =
+            await this.prisma.job.findFirst({
+                where: {
+                    id: jobId,
+                    companyId: recruiter.companyId,
+                },
+                select: {
+                    id: true,
+                },
+            });
 
         if (!job) {
-            throw new NotFoundException('Job not found');
+            throw new NotFoundException(
+                'Job not found',
+            );
         }
 
         const requirement =
@@ -621,188 +1026,8 @@ export class JobsService {
         });
 
         return {
-            message: 'Job requirement removed successfully',
+            message:
+                'Job requirement removed successfully',
         };
-    }
-
-    // Update an existing job
-    async update(
-        userId: string,
-        jobId: string,
-        dto: UpdateJobDto,
-    ) {
-        const recruiter =
-            await this.prisma.recruiter.findUnique({
-                where: {
-                    userId,
-                },
-                select: {
-                    companyId: true,
-                },
-            });
-
-        if (!recruiter) {
-            throw new ForbiddenException(
-                'Only recruiters can update jobs',
-            );
-        }
-
-        if (!recruiter.companyId) {
-            throw new BadRequestException(
-                'Recruiter is not assigned to a company',
-            );
-        }
-
-        const job = await this.prisma.job.findFirst({
-            where: {
-                id: jobId,
-                companyId: recruiter.companyId,
-            },
-            select: {
-                id: true,
-                companyId: true,
-                salaryMin: true,
-                salaryMax: true,
-            },
-        });
-
-        if (!job) {
-            throw new NotFoundException(
-                'Job not found',
-            );
-        }
-
-        // Validate the resulting salary range.
-        const resultingSalaryMin =
-            dto.salaryMin !== undefined
-                ? dto.salaryMin
-                : job.salaryMin !== null
-                    ? Number(job.salaryMin)
-                    : undefined;
-
-        const resultingSalaryMax =
-            dto.salaryMax !== undefined
-                ? dto.salaryMax
-                : job.salaryMax !== null
-                    ? Number(job.salaryMax)
-                    : undefined;
-
-        if (
-            resultingSalaryMin !== undefined &&
-            resultingSalaryMax !== undefined &&
-            resultingSalaryMax < resultingSalaryMin
-        ) {
-            throw new BadRequestException(
-                'salaryMax cannot be lower than salaryMin',
-            );
-        }
-
-        const requiredSkillIds =
-            dto.requiredSkillIds;
-
-        const preferredSkillIds =
-            dto.preferredSkillIds;
-
-        const hasDuplicates = (ids: string[]) =>
-            new Set(ids).size !== ids.length;
-
-        if (
-            (requiredSkillIds !== undefined &&
-                hasDuplicates(requiredSkillIds)) ||
-            (preferredSkillIds !== undefined &&
-                hasDuplicates(preferredSkillIds))
-        ) {
-            throw new BadRequestException(
-                'A skill cannot be added to a job more than once',
-            );
-        }
-
-
-
-        // Validate required and preferred skill separation.
-        if (
-            requiredSkillIds !== undefined &&
-            preferredSkillIds !== undefined
-        ) {
-            const overlap =
-                requiredSkillIds.filter((skillId) =>
-                    preferredSkillIds.includes(skillId),
-                );
-
-            if (overlap.length > 0) {
-                throw new BadRequestException(
-                    'A skill cannot be both required and preferred',
-                );
-            }
-        }
-
-        const skillIds = [
-            ...new Set([
-                ...(requiredSkillIds ?? []),
-                ...(preferredSkillIds ?? []),
-            ]),
-        ];
-
-        // Validate that all referenced skills exist.
-        if (skillIds.length > 0) {
-            const skills =
-                await this.prisma.skill.findMany({
-                    where: {
-                        id: {
-                            in: skillIds,
-                        },
-                    },
-                    select: {
-                        id: true,
-                    },
-                });
-
-            if (skills.length !== skillIds.length) {
-                throw new BadRequestException(
-                    'One or more skills do not exist',
-                );
-            }
-        }
-
-        const {
-            requiredSkillIds: _requiredSkillIds,
-            preferredSkillIds: _preferredSkillIds,
-            ...jobData
-        } = dto;
-
-        const updateData = {
-            ...jobData,
-            ...(requiredSkillIds !== undefined ||
-                preferredSkillIds !== undefined
-                ? {
-                    requirements: {
-                        deleteMany: {},
-                        create: [
-                            ...(requiredSkillIds ?? []).map(
-                                (skillId) => ({
-                                    skillId,
-                                    required: true,
-                                    minimumLevel: 1,
-                                }),
-                            ),
-                            ...(preferredSkillIds ?? []).map(
-                                (skillId) => ({
-                                    skillId,
-                                    required: false,
-                                    minimumLevel: 1,
-                                }),
-                            ),
-                        ],
-                    },
-                }
-                : {}),
-        };
-
-        return this.prisma.job.update({
-            where: {
-                id: jobId,
-            },
-            data: updateData,
-        });
     }
 }

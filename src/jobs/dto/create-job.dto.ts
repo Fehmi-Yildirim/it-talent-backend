@@ -10,13 +10,13 @@ import {
     MaxLength,
     Min,
     MinLength,
-    ValidateIf,
 } from 'class-validator';
 
 import {
     EmploymentType,
     WorkMode,
 } from '../../../generated/prisma/client';
+
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateJobDto {
@@ -51,7 +51,6 @@ export class CreateJobDto {
     @Type(() => Number)
     @IsNumber()
     @Min(0)
-    @ValidateIf((value) => value.salaryMax !== undefined)
     salaryMax?: number;
 
     @IsOptional()
@@ -67,7 +66,8 @@ export class CreateJobDto {
     @IsArray()
     @IsUUID('4', { each: true })
     @ApiPropertyOptional({
-        description: 'UUIDs of skills that are mandatory for the job.',
+        description:
+            'UUIDs of skills that are mandatory for the job.',
         example: [
             '11111111-1111-4111-8111-111111111111',
         ],
@@ -78,7 +78,8 @@ export class CreateJobDto {
     @IsArray()
     @IsUUID('4', { each: true })
     @ApiPropertyOptional({
-        description: 'UUIDs of skills that are preferred but not mandatory.',
+        description:
+            'UUIDs of skills that are preferred but not mandatory.',
         example: [
             '22222222-2222-4222-8222-222222222222',
         ],

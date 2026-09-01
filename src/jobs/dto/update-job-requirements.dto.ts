@@ -1,12 +1,18 @@
+import {
+    IsArray,
+    IsOptional,
+    IsUUID,
+} from 'class-validator';
+
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsOptional, IsUUID } from 'class-validator';
 
 export class UpdateJobRequirementsDto {
     @IsOptional()
     @IsArray()
     @IsUUID('4', { each: true })
     @ApiPropertyOptional({
-        description: 'UUIDs of skills that are mandatory for the job.',
+        description:
+            'UUIDs of skills that are mandatory for the job.',
         example: [
             '11111111-1111-4111-8111-111111111111',
         ],

@@ -37,27 +37,33 @@ export class CompaniesService {
         }
 
         const name = dto.name.trim();
-        const company = await this.prisma.company.create({
-            data: {
-                name,
-                slug: await this.createUniqueSlug(name),
-                description: dto.description.trim(),
-            },
-        });
 
-        await this.prisma.recruiter.update({
-            where: {
-                id: recruiter.id,
-            },
-            data: {
-                companyId: company.id,
-            },
-        });
+        return this.prisma.$transaction(async (tx) => {
+            const company = await tx.company.create({
+                data: {
+                    name,
+                    slug: await this.createUniqueSlug(name, tx),
+                    description: dto.description.trim(),
+                },
+            });
 
-        return company;
+            await tx.recruiter.update({
+                where: {
+                    id: recruiter.id,
+                },
+                data: {
+                    companyId: company.id,
+                },
+            });
+
+            return company;
+        });
     }
 
-    private async createUniqueSlug(name: string) {
+    private async createUniqueSlug(
+        name: string,
+        prisma: Pick<PrismaService, 'company'> = this.prisma,
+    ) {
         const baseSlug = name
             .toLowerCase()
             .trim()
@@ -70,7 +76,8 @@ export class CompaniesService {
 
         while (true) {
             const slug = suffix ? `${baseSlug}-${suffix}` : baseSlug;
-            const existingCompany = await this.prisma.company.findUnique({
+
+            const existingCompany = await prisma.company.findUnique({
                 where: { slug },
                 select: { id: true },
             });

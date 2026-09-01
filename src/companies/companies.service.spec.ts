@@ -12,6 +12,7 @@ describe('CompaniesService', () => {
     let service: CompaniesService;
 
     const prisma = {
+        $transaction: jest.fn(async (callback) => callback(prisma)),
         recruiter: {
             findUnique: jest.fn(),
             update: jest.fn(),
@@ -65,6 +66,8 @@ describe('CompaniesService', () => {
                 description: '  Acme description  ',
             });
 
+            expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+
             expect(prisma.company.create).toHaveBeenCalledWith({
                 data: {
                     name: 'Acme',
@@ -105,6 +108,7 @@ describe('CompaniesService', () => {
             );
 
             expect(prisma.company.create).not.toHaveBeenCalled();
+            expect(prisma.$transaction).not.toHaveBeenCalled();
         });
 
         it('should reject a recruiter who already has a company', async () => {
@@ -125,6 +129,7 @@ describe('CompaniesService', () => {
             );
 
             expect(prisma.company.create).not.toHaveBeenCalled();
+            expect(prisma.$transaction).not.toHaveBeenCalled();
         });
 
         it('should create a unique slug when the base slug already exists', async () => {
@@ -181,6 +186,8 @@ describe('CompaniesService', () => {
                     description: 'Description',
                 },
             });
+
+            expect(prisma.$transaction).toHaveBeenCalledTimes(1);
         });
     });
 

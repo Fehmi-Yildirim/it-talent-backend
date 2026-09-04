@@ -4,16 +4,16 @@ import { PrismaService } from '../database/prisma.service';
 
 @Controller('health')
 export class HealthController {
-    constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-    @Get()
-    async check() {
-        await this.prisma.$queryRaw`SELECT 1`;
+  @Get()
+  async check() {
+    await this.prisma.$queryRaw`SELECT 1`;
 
-        return {
-            status: 'ok',
-            service: 'it-talent-backend',
-            database: 'ok',
-        };
-    }
+    return {
+      status: 'ok',
+      service: 'it-talent-backend',
+      database: 'ok',
+    };
+  }
 }

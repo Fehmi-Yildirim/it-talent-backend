@@ -1,14 +1,8 @@
-import {
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 
 import { PrismaService } from '../database/prisma.service';
-import {
-  UserRole,
-  UserStatus,
-} from '../../generated/prisma/enums';
+import { UserRole, UserStatus } from '../../generated/prisma/enums';
 import { UsersService } from './users.service';
 
 describe('UsersService', () => {
@@ -61,11 +55,7 @@ describe('UsersService', () => {
       prisma.user.findUnique.mockResolvedValue(user);
 
       await expect(
-        service.findOne(
-          'user-1',
-          'admin-1',
-          UserRole.ADMIN,
-        ),
+        service.findOne('user-1', 'admin-1', UserRole.ADMIN),
       ).resolves.toEqual(user);
     });
 
@@ -73,11 +63,7 @@ describe('UsersService', () => {
       prisma.user.findUnique.mockResolvedValue(user);
 
       await expect(
-        service.findOne(
-          'user-1',
-          'user-1',
-          UserRole.CANDIDATE,
-        ),
+        service.findOne('user-1', 'user-1', UserRole.CANDIDATE),
       ).resolves.toEqual(user);
     });
 
@@ -85,11 +71,7 @@ describe('UsersService', () => {
       prisma.user.findUnique.mockResolvedValue(user);
 
       await expect(
-        service.findOne(
-          'user-1',
-          'user-2',
-          UserRole.CANDIDATE,
-        ),
+        service.findOne('user-1', 'user-2', UserRole.CANDIDATE),
       ).rejects.toThrow(
         new ForbiddenException(
           'You do not have permission to access this user',
@@ -101,14 +83,8 @@ describe('UsersService', () => {
       prisma.user.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.findOne(
-          'missing-user',
-          'user-1',
-          UserRole.CANDIDATE,
-        ),
-      ).rejects.toThrow(
-        new NotFoundException('User not found'),
-      );
+        service.findOne('missing-user', 'user-1', UserRole.CANDIDATE),
+      ).rejects.toThrow(new NotFoundException('User not found'));
     });
   });
 

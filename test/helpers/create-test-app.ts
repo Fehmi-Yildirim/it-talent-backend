@@ -3,28 +3,28 @@ import { Test } from '@nestjs/testing';
 import { AppModule } from '../../src/app.module';
 
 export async function createTestApp(): Promise<INestApplication> {
-    const moduleFixture = await Test.createTestingModule({
-        imports: [AppModule],
-    }).compile();
+  const moduleFixture = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
 
-    const app = moduleFixture.createNestApplication();
+  const app = moduleFixture.createNestApplication();
 
-    app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix('api/v1');
 
-    app.enableCors({
-        origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
-        credentials: true,
-    });
+  app.enableCors({
+    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    credentials: true,
+  });
 
-    app.useGlobalPipes(
-        new ValidationPipe({
-            whitelist: true,
-            transform: true,
-            forbidNonWhitelisted: true,
-        }),
-    );
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
 
-    await app.init();
+  await app.init();
 
-    return app;
+  return app;
 }

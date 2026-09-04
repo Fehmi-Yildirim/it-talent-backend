@@ -27,7 +27,7 @@ type AuthenticatedRequest = Request & {
 @Controller('users')
 @ApiBearerAuth('access-token')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
@@ -51,15 +51,8 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Get(':id')
-  findOne(
-    @Param('id') id: string,
-    @Req() req: AuthenticatedRequest,
-  ) {
-    return this.usersService.findOne(
-      id,
-      req.user.id,
-      req.user.role,
-    );
+  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
+    return this.usersService.findOne(id, req.user.id, req.user.role);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -69,21 +62,13 @@ export class UsersController {
     @Body() dto: UpdateUserDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.usersService.update(
-      id,
-      dto,
-      req.user.id,
-      req.user.role,
-    );
+    return this.usersService.update(id, dto, req.user.id, req.user.role);
   }
 
   @Roles(UserRole.ADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':id')
-  remove(
-    @Param('id') id: string,
-    @Req() req: AuthenticatedRequest,
-  ) {
+  remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.usersService.remove(id, req.user.id);
   }
 }

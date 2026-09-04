@@ -1,14 +1,14 @@
 import {
-    Body,
-    Controller,
-    Delete,
-    Get,
-    Param,
-    ParseUUIDPipe,
-    Patch,
-    Post,
-    Query,
-    UseGuards,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
@@ -27,43 +27,39 @@ import { SkillsService } from './skills.service';
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard)
 export class SkillsController {
-    constructor(private readonly skillsService: SkillsService) { }
+  constructor(private readonly skillsService: SkillsService) {}
 
-    @Get()
-    findAll(@Query() dto: GetSkillsDto) {
-        return this.skillsService.findAll(dto);
-    }
+  @Get()
+  findAll(@Query() dto: GetSkillsDto) {
+    return this.skillsService.findAll(dto);
+  }
 
-    @Get(':id')
-    findOne(
-        @Param('id', new ParseUUIDPipe()) id: string,
-    ) {
-        return this.skillsService.findOne(id);
-    }
+  @Get(':id')
+  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.skillsService.findOne(id);
+  }
 
-    @Roles(UserRole.ADMIN)
-    @UseGuards(RolesGuard)
-    @Post()
-    create(@Body() dto: CreateSkillDto) {
-        return this.skillsService.create(dto);
-    }
+  @Roles(UserRole.ADMIN)
+  @UseGuards(RolesGuard)
+  @Post()
+  create(@Body() dto: CreateSkillDto) {
+    return this.skillsService.create(dto);
+  }
 
-    @Roles(UserRole.ADMIN)
-    @UseGuards(RolesGuard)
-    @Patch(':id')
-    update(
-        @Param('id', new ParseUUIDPipe()) id: string,
-        @Body() dto: UpdateSkillDto,
-    ) {
-        return this.skillsService.update(id, dto);
-    }
+  @Roles(UserRole.ADMIN)
+  @UseGuards(RolesGuard)
+  @Patch(':id')
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateSkillDto,
+  ) {
+    return this.skillsService.update(id, dto);
+  }
 
-    @Roles(UserRole.ADMIN)
-    @UseGuards(RolesGuard)
-    @Delete(':id')
-    remove(
-        @Param('id', new ParseUUIDPipe()) id: string,
-    ) {
-        return this.skillsService.remove(id);
-    }
+  @Roles(UserRole.ADMIN)
+  @UseGuards(RolesGuard)
+  @Delete(':id')
+  remove(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.skillsService.remove(id);
+  }
 }

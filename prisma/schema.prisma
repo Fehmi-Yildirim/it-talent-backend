@@ -90,33 +90,36 @@ model Company {
 }
 
 model Job {
-  id                   String         @id @default(uuid()) @db.Uuid
-  companyId            String         @db.Uuid
-  createdByRecruiterId String         @db.Uuid
-  title                String
-  description          String
-  location             String?
-  employmentType       EmploymentType
-  workMode             WorkMode
-  salaryMin            Decimal?
-  salaryMax            Decimal?
-  currency             String?
-  status               JobStatus      @default(DRAFT)
-  publishedAt          DateTime?
-  expiresAt            DateTime?
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+id                   String         @id @default(uuid()) @db.Uuid
+companyId            String         @db.Uuid
+createdByRecruiterId String         @db.Uuid
+title                String
+description          String
+location             String?
+employmentType       EmploymentType
+workMode             WorkMode
+salaryMin            Decimal?
+salaryMax            Decimal?
+currency             String?
+status               JobStatus      @default(DRAFT)
+publishedAt          DateTime?
+expiresAt            DateTime?
+createdAt            DateTime       @default(now())
+updatedAt            DateTime       @updatedAt
 
-  company            Company          @relation(fields: [companyId], references: [id])
-  createdByRecruiter Recruiter        @relation(fields: [createdByRecruiterId], references: [id])
-  requirements       JobRequirement[]
-  matches            Match[]
+company            Company          @relation(fields: [companyId], references: [id])
+createdByRecruiter Recruiter        @relation(fields: [createdByRecruiterId], references: [id])
+requirements       JobRequirement[]
+matches             Match[]
 
-  @@index([companyId])
-  @@index([status])
-  @@index([createdAt])
-  @@map("jobs")
+@@index([companyId])
+@@index([status])
+@@index([status, publishedAt])
+@@index([status, expiresAt])
+@@index([createdAt])
+@@map("jobs")
 }
+
 
 enum EmploymentType {
   FULL_TIME

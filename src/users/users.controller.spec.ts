@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UserRole } from '../../generated/prisma/enums';
+
+import { UserRole, UserStatus } from '../../generated/prisma/enums';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 
@@ -13,6 +14,8 @@ describe('UsersController', () => {
     update: jest.Mock;
     remove: jest.Mock;
   };
+
+  type ControllerRequest = Parameters<UsersController['getMe']>[0];
 
   beforeEach(async () => {
     usersService = {
@@ -46,9 +49,11 @@ describe('UsersController', () => {
       const req = {
         user: {
           id: 'user-1',
+          email: 'user@example.com',
           role: UserRole.CANDIDATE,
+          status: UserStatus.ACTIVE,
         },
-      } as any;
+      } as ControllerRequest;
 
       const result = {
         id: 'user-1',
@@ -69,7 +74,7 @@ describe('UsersController', () => {
         email: 'user@example.com',
         password: 'password',
         role: UserRole.CANDIDATE,
-        status: 'ACTIVE',
+        status: UserStatus.ACTIVE,
       };
 
       const result = {
@@ -79,7 +84,7 @@ describe('UsersController', () => {
 
       usersService.create.mockResolvedValue(result);
 
-      await expect(controller.create(dto as any)).resolves.toEqual(result);
+      await expect(controller.create(dto)).resolves.toEqual(result);
 
       expect(usersService.create).toHaveBeenCalledWith(dto);
     });
@@ -107,9 +112,11 @@ describe('UsersController', () => {
       const req = {
         user: {
           id: 'user-1',
+          email: 'user@example.com',
           role: UserRole.CANDIDATE,
+          status: UserStatus.ACTIVE,
         },
-      } as any;
+      } as ControllerRequest;
 
       const result = {
         id: 'user-1',
@@ -118,9 +125,7 @@ describe('UsersController', () => {
 
       usersService.findOne.mockResolvedValue(result);
 
-      await expect(
-        controller.findOne('user-1', req),
-      ).resolves.toEqual(result);
+      await expect(controller.findOne('user-1', req)).resolves.toEqual(result);
 
       expect(usersService.findOne).toHaveBeenCalledWith(
         'user-1',
@@ -135,9 +140,11 @@ describe('UsersController', () => {
       const req = {
         user: {
           id: 'user-1',
+          email: 'user@example.com',
           role: UserRole.CANDIDATE,
+          status: UserStatus.ACTIVE,
         },
-      } as any;
+      } as ControllerRequest;
 
       const dto = {
         email: 'new@example.com',
@@ -151,7 +158,7 @@ describe('UsersController', () => {
       usersService.update.mockResolvedValue(result);
 
       await expect(
-        controller.update('user-1', dto as any, req),
+        controller.update('user-1', dto, req),
       ).resolves.toEqual(result);
 
       expect(usersService.update).toHaveBeenCalledWith(
@@ -168,9 +175,11 @@ describe('UsersController', () => {
       const req = {
         user: {
           id: 'admin-1',
+          email: 'admin@example.com',
           role: UserRole.ADMIN,
+          status: UserStatus.ACTIVE,
         },
-      } as any;
+      } as ControllerRequest;
 
       const result = {
         id: 'user-1',
@@ -179,14 +188,9 @@ describe('UsersController', () => {
 
       usersService.remove.mockResolvedValue(result);
 
-      await expect(
-        controller.remove('user-1', req),
-      ).resolves.toEqual(result);
+      await expect(controller.remove('user-1', req)).resolves.toEqual(result);
 
-      expect(usersService.remove).toHaveBeenCalledWith(
-        'user-1',
-        'admin-1',
-      );
+      expect(usersService.remove).toHaveBeenCalledWith('user-1', 'admin-1');
     });
   });
 });

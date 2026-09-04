@@ -4,80 +4,81 @@ import { RecruitersController } from './recruiters.controller';
 import { RecruitersService } from './recruiters.service';
 
 describe('RecruitersController', () => {
-    let controller: RecruitersController;
+  let controller: RecruitersController;
 
-    const recruitersService = {
-        getMe: jest.fn(),
-        updateMe: jest.fn(),
+  const recruitersService = {
+    getMe: jest.fn(),
+    updateMe: jest.fn(),
+  };
+
+  const user = {
+    id: 'recruiter-user-id',
+    email: 'recruiter@example.com',
+    role: 'RECRUITER',
+    status: 'ACTIVE',
+  };
+
+  type ControllerRequest = Parameters<RecruitersController['getMe']>[0];
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [RecruitersController],
+      providers: [
+        {
+          provide: RecruitersService,
+          useValue: recruitersService,
+        },
+      ],
+    }).compile();
+
+    controller = module.get<RecruitersController>(RecruitersController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  it('should get the authenticated recruiter profile', async () => {
+    const expectedRecruiter = {
+      id: 'recruiter-id',
+      userId: user.id,
+      jobTitle: 'Senior Recruiter',
     };
 
-    const user = {
-        id: 'recruiter-user-id',
-        email: 'recruiter@example.com',
-        role: 'RECRUITER',
-        status: 'ACTIVE',
+    recruitersService.getMe.mockResolvedValue(expectedRecruiter);
+
+    const request = {
+      user,
+    } as ControllerRequest;
+
+    const result = await controller.getMe(request);
+
+    expect(recruitersService.getMe).toHaveBeenCalledWith(user.id);
+    expect(result).toEqual(expectedRecruiter);
+  });
+
+  it('should update the authenticated recruiter profile', async () => {
+    const dto = {
+      jobTitle: 'Recruitment Manager',
     };
 
-    beforeEach(async () => {
-        jest.clearAllMocks();
+    const expectedRecruiter = {
+      id: 'recruiter-id',
+      userId: user.id,
+      jobTitle: 'Recruitment Manager',
+    };
 
-        const module: TestingModule = await Test.createTestingModule({
-            controllers: [RecruitersController],
-            providers: [
-                {
-                    provide: RecruitersService,
-                    useValue: recruitersService,
-                },
-            ],
-        }).compile();
+    recruitersService.updateMe.mockResolvedValue(expectedRecruiter);
 
-        controller = module.get<RecruitersController>(
-            RecruitersController,
-        );
-    });
+    const request = {
+      user,
+    } as ControllerRequest;
 
-    it('should be defined', () => {
-        expect(controller).toBeDefined();
-    });
+    const result = await controller.updateMe(request, dto);
 
-    it('should get the authenticated recruiter profile', async () => {
-        const expectedRecruiter = {
-            id: 'recruiter-id',
-            userId: user.id,
-            jobTitle: 'Senior Recruiter',
-        };
-
-        recruitersService.getMe.mockResolvedValue(expectedRecruiter);
-
-        const result = await controller.getMe({ user } as any);
-
-        expect(recruitersService.getMe).toHaveBeenCalledWith(user.id);
-        expect(result).toEqual(expectedRecruiter);
-    });
-
-    it('should update the authenticated recruiter profile', async () => {
-        const dto = {
-            jobTitle: 'Recruitment Manager',
-        };
-
-        const expectedRecruiter = {
-            id: 'recruiter-id',
-            userId: user.id,
-            jobTitle: 'Recruitment Manager',
-        };
-
-        recruitersService.updateMe.mockResolvedValue(expectedRecruiter);
-
-        const result = await controller.updateMe(
-            { user } as any,
-            dto,
-        );
-
-        expect(recruitersService.updateMe).toHaveBeenCalledWith(
-            user.id,
-            dto,
-        );
-
-        expect(result).toEqual(expectedRecruiter);
-    });
+    expect(recruitersService.updateMe).toHaveBeenCalledWith(user.id, dto);
+    expect(result).toEqual(expectedRecruiter);
+  });
 });

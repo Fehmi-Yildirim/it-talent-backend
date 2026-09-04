@@ -13,7 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async getMe(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -130,11 +130,7 @@ export class UsersService {
     requestingUserId: string,
     requestingUserRole: UserRole,
   ) {
-    const user = await this.findOne(
-      id,
-      requestingUserId,
-      requestingUserRole,
-    );
+    const user = await this.findOne(id, requestingUserId, requestingUserRole);
 
     const data: {
       email?: string;
@@ -220,11 +216,7 @@ export class UsersService {
   }
 
   async remove(id: string, _requestingUserId: string) {
-    const user = await this.findOne(
-      id,
-      _requestingUserId,
-      UserRole.ADMIN,
-    );
+    const user = await this.findOne(id, _requestingUserId, UserRole.ADMIN);
 
     // Never allow the last ADMIN to be deleted.
     if (user.role === UserRole.ADMIN) {

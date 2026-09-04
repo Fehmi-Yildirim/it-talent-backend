@@ -5,107 +5,105 @@ import { PrismaService } from '../database/prisma.service';
 import { RecruitersService } from './recruiters.service';
 
 describe('RecruitersService', () => {
-    let service: RecruitersService;
+  let service: RecruitersService;
 
-    const prismaMock = {
-        recruiter: {
-            findUnique: jest.fn(),
-            update: jest.fn(),
+  const prismaMock = {
+    recruiter: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        RecruitersService,
+        {
+          provide: PrismaService,
+          useValue: prismaMock,
         },
-    };
+      ],
+    }).compile();
 
-    beforeEach(async () => {
-        jest.clearAllMocks();
+    service = module.get<RecruitersService>(RecruitersService);
+  });
 
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                RecruitersService,
-                {
-                    provide: PrismaService,
-                    useValue: prismaMock,
-                },
-            ],
-        }).compile();
+  describe('getMe', () => {
+    it('should return the authenticated recruiter profile', async () => {
+      const recruiter = {
+        id: 'recruiter-id',
+        userId: 'user-id',
+        companyId: 'company-id',
+        jobTitle: 'Senior Recruiter',
+      };
 
-        service = module.get<RecruitersService>(RecruitersService);
+      prismaMock.recruiter.findUnique.mockResolvedValue(recruiter);
+
+      const result = await service.getMe('user-id');
+
+      expect(result).toEqual(recruiter);
+
+      expect(prismaMock.recruiter.findUnique).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-id',
+        },
+      });
     });
 
-    describe('getMe', () => {
-        it('should return the authenticated recruiter profile', async () => {
-            const recruiter = {
-                id: 'recruiter-id',
-                userId: 'user-id',
-                companyId: 'company-id',
-                jobTitle: 'Senior Recruiter',
-            };
+    it('should throw NotFoundException when the recruiter profile does not exist', async () => {
+      prismaMock.recruiter.findUnique.mockResolvedValue(null);
 
-            prismaMock.recruiter.findUnique.mockResolvedValue(recruiter);
+      await expect(service.getMe('unknown-user-id')).rejects.toThrow(
+        new NotFoundException('Recruiter profile not found'),
+      );
+    });
+  });
 
-            const result = await service.getMe('user-id');
+  describe('updateMe', () => {
+    it('should update the authenticated recruiter profile', async () => {
+      const recruiter = {
+        id: 'recruiter-id',
+        userId: 'user-id',
+        companyId: 'company-id',
+        jobTitle: 'Recruiter',
+      };
 
-            expect(result).toEqual(recruiter);
+      const updatedRecruiter = {
+        ...recruiter,
+        jobTitle: 'Senior Recruiter',
+      };
 
-            expect(prismaMock.recruiter.findUnique).toHaveBeenCalledWith({
-                where: {
-                    userId: 'user-id',
-                },
-            });
-        });
+      prismaMock.recruiter.findUnique.mockResolvedValue(recruiter);
+      prismaMock.recruiter.update.mockResolvedValue(updatedRecruiter);
 
-        it('should throw NotFoundException when the recruiter profile does not exist', async () => {
-            prismaMock.recruiter.findUnique.mockResolvedValue(null);
+      const result = await service.updateMe('user-id', {
+        jobTitle: 'Senior Recruiter',
+      });
 
-            await expect(service.getMe('unknown-user-id')).rejects.toThrow(
-                new NotFoundException('Recruiter profile not found'),
-            );
-        });
+      expect(result).toEqual(updatedRecruiter);
+
+      expect(prismaMock.recruiter.update).toHaveBeenCalledWith({
+        where: {
+          id: 'recruiter-id',
+        },
+        data: {
+          jobTitle: 'Senior Recruiter',
+        },
+      });
     });
 
-    describe('updateMe', () => {
-        it('should update the authenticated recruiter profile', async () => {
-            const recruiter = {
-                id: 'recruiter-id',
-                userId: 'user-id',
-                companyId: 'company-id',
-                jobTitle: 'Recruiter',
-            };
+    it('should throw NotFoundException when the recruiter profile does not exist', async () => {
+      prismaMock.recruiter.findUnique.mockResolvedValue(null);
 
-            const updatedRecruiter = {
-                ...recruiter,
-                jobTitle: 'Senior Recruiter',
-            };
+      await expect(
+        service.updateMe('unknown-user-id', {
+          jobTitle: 'Senior Recruiter',
+        }),
+      ).rejects.toThrow(new NotFoundException('Recruiter profile not found'));
 
-            prismaMock.recruiter.findUnique.mockResolvedValue(recruiter);
-            prismaMock.recruiter.update.mockResolvedValue(updatedRecruiter);
-
-            const result = await service.updateMe('user-id', {
-                jobTitle: 'Senior Recruiter',
-            });
-
-            expect(result).toEqual(updatedRecruiter);
-
-            expect(prismaMock.recruiter.update).toHaveBeenCalledWith({
-                where: {
-                    id: 'recruiter-id',
-                },
-                data: {
-                    jobTitle: 'Senior Recruiter',
-                },
-            });
-        });
-
-        it('should throw NotFoundException when the recruiter profile does not exist', async () => {
-            prismaMock.recruiter.findUnique.mockResolvedValue(null);
-
-            await expect(
-                service.updateMe('unknown-user-id', {
-                    jobTitle: 'Senior Recruiter',
-                }),
-            ).rejects.toThrow(
-                new NotFoundException('Recruiter profile not found'),
-            );
-
-            expect(prismaMock.recruiter.update).not.toHaveBeenCalled();
-        });
+      expect(prismaMock.recruiter.update).not.toHaveBeenCalled();
     });
+  });
 });

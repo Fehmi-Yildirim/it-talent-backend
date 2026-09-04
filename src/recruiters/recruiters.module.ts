@@ -5,9 +5,9 @@ import { RecruitersController } from './recruiters.controller';
 import { RecruitersService } from './recruiters.service';
 
 @Module({
-    imports: [DatabaseModule],
-    controllers: [RecruitersController],
-    providers: [RecruitersService],
-    exports: [RecruitersService],
+  imports: [DatabaseModule],
+  controllers: [RecruitersController],
+  providers: [RecruitersService],
+  exports: [RecruitersService],
 })
-export class RecruitersModule { }
+export class RecruitersModule {}

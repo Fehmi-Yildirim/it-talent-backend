@@ -30,4 +30,4 @@ import { CandidatesModule } from './candidates/candidates.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule {}

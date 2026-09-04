@@ -7,29 +7,30 @@ import { PrismaClient } from '../../generated/prisma/client';
 
 @Injectable()
 export class PrismaService
-    extends PrismaClient
-    implements OnModuleInit, OnModuleDestroy {
-    constructor() {
-        const connectionString = process.env.DATABASE_URL;
+  extends PrismaClient
+  implements OnModuleInit, OnModuleDestroy
+{
+  constructor() {
+    const connectionString = process.env.DATABASE_URL;
 
-        if (!connectionString) {
-            throw new Error('DATABASE_URL is not defined');
-        }
-
-        const adapter = new PrismaPg({
-            connectionString,
-        });
-
-        super({
-            adapter,
-        });
+    if (!connectionString) {
+      throw new Error('DATABASE_URL is not defined');
     }
 
-    async onModuleInit() {
-        await this.$connect();
-    }
+    const adapter = new PrismaPg({
+      connectionString,
+    });
 
-    async onModuleDestroy() {
-        await this.$disconnect();
-    }
+    super({
+      adapter,
+    });
+  }
+
+  async onModuleInit() {
+    await this.$connect();
+  }
+
+  async onModuleDestroy() {
+    await this.$disconnect();
+  }
 }

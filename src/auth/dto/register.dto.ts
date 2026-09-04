@@ -1,9 +1,4 @@
-import {
-  IsEmail,
-  IsEnum,
-  IsString,
-  MinLength,
-} from 'class-validator';
+import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
 
 import { UserRole } from '../../../generated/prisma/enums';
 

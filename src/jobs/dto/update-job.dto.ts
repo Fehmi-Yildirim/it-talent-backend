@@ -1,66 +1,62 @@
 import {
-    IsArray,
-    IsEnum,
-    IsInt,
-    IsOptional,
-    IsString,
-    IsUUID,
-    Min,
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
 } from 'class-validator';
 
-import {
-    EmploymentType,
-    WorkMode,
-} from '../../../generated/prisma/client';
+import { EmploymentType, WorkMode } from '../../../generated/prisma/client';
 
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateJobDto {
-    @IsOptional()
-    @IsString()
-    title?: string;
+  @IsOptional()
+  @IsString()
+  title?: string;
 
-    @IsOptional()
-    @IsString()
-    description?: string;
+  @IsOptional()
+  @IsString()
+  description?: string;
 
-    @IsOptional()
-    @IsEnum(EmploymentType)
-    employmentType?: EmploymentType;
+  @IsOptional()
+  @IsEnum(EmploymentType)
+  employmentType?: EmploymentType;
 
-    @IsOptional()
-    @IsEnum(WorkMode)
-    workMode?: WorkMode;
+  @IsOptional()
+  @IsEnum(WorkMode)
+  workMode?: WorkMode;
 
-    @IsOptional()
-    @IsInt()
-    @Min(0)
-    salaryMin?: number;
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  salaryMin?: number;
 
-    @IsOptional()
-    @IsInt()
-    @Min(0)
-    salaryMax?: number;
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  salaryMax?: number;
 
-    @IsOptional()
-    @IsString()
-    location?: string;
+  @IsOptional()
+  @IsString()
+  location?: string;
 
-    @IsOptional()
-    @IsArray()
-    @IsUUID('4', { each: true })
-    @ApiPropertyOptional({
-        description:
-            'Replaces the complete list of required skills when provided.',
-    })
-    requiredSkillIds?: string[];
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @ApiPropertyOptional({
+    description: 'Replaces the complete list of required skills when provided.',
+  })
+  requiredSkillIds?: string[];
 
-    @IsOptional()
-    @IsArray()
-    @IsUUID('4', { each: true })
-    @ApiPropertyOptional({
-        description:
-            'Replaces the complete list of preferred skills when provided.',
-    })
-    preferredSkillIds?: string[];
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @ApiPropertyOptional({
+    description:
+      'Replaces the complete list of preferred skills when provided.',
+  })
+  preferredSkillIds?: string[];
 }

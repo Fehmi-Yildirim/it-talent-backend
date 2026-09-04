@@ -1,13 +1,13 @@
 import {
-    Body,
-    Controller,
-    Delete,
-    Get,
-    Param,
-    Patch,
-    Post,
-    Req,
-    UseGuards,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -26,62 +26,46 @@ import { UserRole } from '../../../generated/prisma/enums';
 type UserFromJwt = Awaited<ReturnType<JwtStrategy['validate']>>;
 
 interface AuthRequest extends Request {
-    user: UserFromJwt;
+  user: UserFromJwt;
 }
 
 @Controller('candidates/me/skills')
 @ApiTags('CandidateSkills')
 @ApiBearerAuth('access-token')
 export class CandidateSkillsController {
-    constructor(
-        private readonly candidateSkillsService: CandidateSkillsService,
-    ) { }
+  constructor(
+    private readonly candidateSkillsService: CandidateSkillsService,
+  ) {}
 
-    @Roles(UserRole.CANDIDATE)
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Get()
-    findMine(@Req() req: AuthRequest) {
-        return this.candidateSkillsService.findMine(req.user.id);
-    }
+  @Roles(UserRole.CANDIDATE)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Get()
+  findMine(@Req() req: AuthRequest) {
+    return this.candidateSkillsService.findMine(req.user.id);
+  }
 
-    @Roles(UserRole.CANDIDATE)
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Post()
-    create(
-        @Req() req: AuthRequest,
-        @Body() dto: CreateCandidateSkillDto,
-    ) {
-        return this.candidateSkillsService.create(
-            req.user.id,
-            dto,
-        );
-    }
+  @Roles(UserRole.CANDIDATE)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Post()
+  create(@Req() req: AuthRequest, @Body() dto: CreateCandidateSkillDto) {
+    return this.candidateSkillsService.create(req.user.id, dto);
+  }
 
-    @Roles(UserRole.CANDIDATE)
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Patch(':id')
-    updateMine(
-        @Req() req: AuthRequest,
-        @Param('id') id: string,
-        @Body() dto: UpdateCandidateSkillDto,
-    ) {
-        return this.candidateSkillsService.updateMine(
-            req.user.id,
-            id,
-            dto,
-        );
-    }
+  @Roles(UserRole.CANDIDATE)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Patch(':id')
+  updateMine(
+    @Req() req: AuthRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateCandidateSkillDto,
+  ) {
+    return this.candidateSkillsService.updateMine(req.user.id, id, dto);
+  }
 
-    @Roles(UserRole.CANDIDATE)
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Delete(':id')
-    removeMine(
-        @Req() req: AuthRequest,
-        @Param('id') id: string,
-    ) {
-        return this.candidateSkillsService.removeMine(
-            req.user.id,
-            id,
-        );
-    }
+  @Roles(UserRole.CANDIDATE)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Delete(':id')
+  removeMine(@Req() req: AuthRequest, @Param('id') id: string) {
+    return this.candidateSkillsService.removeMine(req.user.id, id);
+  }
 }

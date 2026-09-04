@@ -5,42 +5,42 @@ import { UpdateRecruiterDto } from './dto/update-recruiter.dto';
 
 @Injectable()
 export class RecruitersService {
-    constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-    async getMe(userId: string) {
-        const recruiter = await this.prisma.recruiter.findUnique({
-            where: {
-                userId,
-            },
-        });
+  async getMe(userId: string) {
+    const recruiter = await this.prisma.recruiter.findUnique({
+      where: {
+        userId,
+      },
+    });
 
-        if (!recruiter) {
-            throw new NotFoundException('Recruiter profile not found');
-        }
-
-        return recruiter;
+    if (!recruiter) {
+      throw new NotFoundException('Recruiter profile not found');
     }
 
-    async updateMe(userId: string, dto: UpdateRecruiterDto) {
-        const recruiter = await this.prisma.recruiter.findUnique({
-            where: {
-                userId,
-            },
-        });
+    return recruiter;
+  }
 
-        if (!recruiter) {
-            throw new NotFoundException('Recruiter profile not found');
-        }
+  async updateMe(userId: string, dto: UpdateRecruiterDto) {
+    const recruiter = await this.prisma.recruiter.findUnique({
+      where: {
+        userId,
+      },
+    });
 
-        return this.prisma.recruiter.update({
-            where: {
-                id: recruiter.id,
-            },
-            data: {
-                ...(dto.jobTitle !== undefined && {
-                    jobTitle: dto.jobTitle.trim(),
-                }),
-            },
-        });
+    if (!recruiter) {
+      throw new NotFoundException('Recruiter profile not found');
     }
+
+    return this.prisma.recruiter.update({
+      where: {
+        id: recruiter.id,
+      },
+      data: {
+        ...(dto.jobTitle !== undefined && {
+          jobTitle: dto.jobTitle.trim(),
+        }),
+      },
+    });
+  }
 }

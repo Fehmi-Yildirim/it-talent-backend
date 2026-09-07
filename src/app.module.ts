@@ -11,6 +11,7 @@ import { CompaniesModule } from './companies/companies.module';
 import { RecruitersModule } from './recruiters/recruiters.module';
 import { JobsModule } from './jobs/jobs.module';
 import { CandidatesModule } from './candidates/candidates.module';
+import { ApplicationsModule } from './applications/applications.module'
 
 @Module({
   imports: [
@@ -26,8 +27,9 @@ import { CandidatesModule } from './candidates/candidates.module';
     RecruitersModule,
     JobsModule,
     CandidatesModule,
+    ApplicationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

@@ -3,14 +3,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+
 import { PrismaService } from '../database/prisma.service';
+
 import { GetSkillsDto } from './dto/get-skills.dto';
 import { CreateSkillDto } from './dto/create-skill.dto';
 import { UpdateSkillDto } from './dto/update-skill.dto';
+import { generateSkillSlug } from './skill-slug.util';
 
 @Injectable()
 export class SkillsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findAll(dto: GetSkillsDto) {
     return this.prisma.skill.findMany({
@@ -74,9 +77,11 @@ export class SkillsService {
   }
 
   async create(dto: CreateSkillDto) {
+    const slug = generateSkillSlug(dto.name);
+
     const existingSkill = await this.prisma.skill.findUnique({
       where: {
-        slug: dto.slug,
+        slug,
       },
     });
 
@@ -87,7 +92,7 @@ export class SkillsService {
     return this.prisma.skill.create({
       data: {
         name: dto.name,
-        slug: dto.slug,
+        slug,
         category: dto.category,
         description: dto.description,
       },
@@ -95,16 +100,21 @@ export class SkillsService {
   }
 
   async update(id: string, dto: UpdateSkillDto) {
-    await this.findOne(id);
+    const existingSkill = await this.findOne(id);
 
-    if (dto.slug) {
-      const existingSkill = await this.prisma.skill.findUnique({
+    const slug =
+      dto.name !== undefined
+        ? generateSkillSlug(dto.name)
+        : existingSkill.slug;
+
+    if (slug !== existingSkill.slug) {
+      const skillWithSlug = await this.prisma.skill.findUnique({
         where: {
-          slug: dto.slug,
+          slug,
         },
       });
 
-      if (existingSkill && existingSkill.id !== id) {
+      if (skillWithSlug && skillWithSlug.id !== id) {
         throw new ConflictException('Skill with this slug already exists');
       }
     }
@@ -114,7 +124,18 @@ export class SkillsService {
         id,
       },
       data: {
-        ...dto,
+        ...(dto.name !== undefined && {
+          name: dto.name,
+        }),
+        ...(dto.category !== undefined && {
+          category: dto.category,
+        }),
+        ...(dto.description !== undefined && {
+          description: dto.description,
+        }),
+        ...(slug !== existingSkill.slug && {
+          slug,
+        }),
       },
     });
   }

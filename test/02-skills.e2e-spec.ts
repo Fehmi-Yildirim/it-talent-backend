@@ -58,14 +58,11 @@ describe('02 - Skills (e2e)', () => {
 
     expect(adminAccessToken).toEqual(expect.any(String));
 
-    skillSlug = `e2e-skill-${Date.now()}`;
-
     const createResponse = await request(app.getHttpServer())
       .post('/api/v1/skills')
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
         name: 'E2E Test Skill',
-        slug: skillSlug,
         category: 'BACKEND',
         description: 'Skill created for E2E tests',
       });
@@ -83,7 +80,7 @@ describe('02 - Skills (e2e)', () => {
 
     const createdSkill = createResponse.body as SkillResponse;
     skillId = createdSkill.id;
-
+    expect(createdSkill.slug).toBe('e2e-test-skill');
     expect(skillId).toEqual(expect.any(String));
   });
 
@@ -139,7 +136,6 @@ describe('02 - Skills (e2e)', () => {
         .post('/api/v1/skills')
         .send({
           name: 'Unauthorized Skill',
-          slug: `unauthorized-${Date.now()}`,
           category: 'BACKEND',
           description: 'Should not be created',
         })
@@ -152,7 +148,6 @@ describe('02 - Skills (e2e)', () => {
         .set('Authorization', `Bearer ${candidateAccessToken}`)
         .send({
           name: 'Candidate Skill',
-          slug: `candidate-${Date.now()}`,
           category: 'BACKEND',
           description: 'Candidate must not create skills',
         })
@@ -172,14 +167,14 @@ describe('02 - Skills (e2e)', () => {
     });
 
     it('should allow ADMIN to create a skill', async () => {
-      const slug = `created-by-admin-${Date.now()}`;
+      const skillName = `Created By Admin ${Date.now()}`;
+      const expectedSlug = skillName.toLowerCase().replace(/\s+/g, '-');
 
       const response = await request(app.getHttpServer())
         .post('/api/v1/skills')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({
-          name: 'Created By Admin',
-          slug,
+          name: skillName,
           category: 'BACKEND',
           description: 'Created by E2E admin test',
         })
@@ -188,26 +183,26 @@ describe('02 - Skills (e2e)', () => {
       const createdSkill = response.body as SkillResponse;
 
       expect(createdSkill).toMatchObject({
-        name: 'Created By Admin',
-        slug,
+        name: skillName,
+        slug: expectedSlug,
         category: 'BACKEND',
       });
 
       expect(createdSkill.id).toEqual(expect.any(String));
     });
 
-    it('should reject a duplicate slug', async () => {
+    it('should reject a skill when the generated slug already exists', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/skills')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({
-          name: 'Duplicate Skill',
-          slug: skillSlug,
+          name: 'E2E Test Skill',
           category: 'BACKEND',
-          description: 'Duplicate slug',
+          description: 'Duplicate generated slug',
         })
         .expect(409);
     });
+
   });
 
   describe('GET /api/v1/skills/:id', () => {
@@ -228,7 +223,7 @@ describe('02 - Skills (e2e)', () => {
       expect(skill).toMatchObject({
         id: skillId,
         name: 'E2E Test Skill',
-        slug: skillSlug,
+        slug: 'e2e-test-skill',
         category: 'BACKEND',
       });
     });
@@ -303,6 +298,25 @@ describe('02 - Skills (e2e)', () => {
         })
         .expect(404);
     });
+
+    it('should regenerate the slug when the name changes', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/skills/${skillId}`)
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .send({
+          name: 'Updated React Native Skill',
+        })
+        .expect(200);
+
+      const updatedSkill = response.body as SkillResponse;
+
+      expect(updatedSkill).toMatchObject({
+        id: skillId,
+        name: 'Updated React Native Skill',
+        slug: 'updated-react-native-skill',
+      });
+    });
+
   });
 
   describe('DELETE /api/v1/skills/:id', () => {

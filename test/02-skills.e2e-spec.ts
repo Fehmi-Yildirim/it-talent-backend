@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { PrismaService } from '../src/database/prisma.service';
 import request from 'supertest';
 
 import { createTestApp } from './helpers/create-test-app';
@@ -22,15 +23,16 @@ interface SkillResponse {
 
 describe('02 - Skills (e2e)', () => {
   let app: INestApplication;
+  let prisma: PrismaService;
 
   let candidateAccessToken: string;
   let adminAccessToken: string;
 
   let skillId: string;
-  let skillSlug: string;
 
   beforeAll(async () => {
     app = await createTestApp();
+    prisma = app.get(PrismaService);
 
     const candidateLogin = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -202,7 +204,6 @@ describe('02 - Skills (e2e)', () => {
         })
         .expect(409);
     });
-
   });
 
   describe('GET /api/v1/skills/:id', () => {
@@ -316,7 +317,6 @@ describe('02 - Skills (e2e)', () => {
         slug: 'updated-react-native-skill',
       });
     });
-
   });
 
   describe('DELETE /api/v1/skills/:id', () => {
@@ -331,6 +331,55 @@ describe('02 - Skills (e2e)', () => {
         .delete(`/api/v1/skills/${skillId}`)
         .set('Authorization', `Bearer ${candidateAccessToken}`)
         .expect(403);
+    });
+
+    it('should reject deletion when a skill is still in use', async () => {
+      const candidate = await prisma.candidate.findFirst({
+        where: {
+          user: {
+            email: 'candidate@example.com',
+          },
+        },
+      });
+
+      expect(candidate).not.toBeNull();
+
+      if (!candidate) {
+        throw new Error('E2E candidate setup failed.');
+      }
+
+      const candidateSkill = await prisma.candidateSkill.create({
+        data: {
+          candidateId: candidate.id,
+          skillId,
+          proficiencyLevel: 3,
+          source: 'SELF_REPORTED',
+        },
+      });
+
+      try {
+        const response = await request(app.getHttpServer())
+          .delete(`/api/v1/skills/${skillId}`)
+          .set('Authorization', `Bearer ${adminAccessToken}`)
+          .expect(409);
+
+        expect(response.body).toEqual(
+          expect.objectContaining({
+            message: 'Skill cannot be deleted because it is still in use.',
+          }),
+        );
+
+        await request(app.getHttpServer())
+          .get(`/api/v1/skills/${skillId}`)
+          .set('Authorization', `Bearer ${candidateAccessToken}`)
+          .expect(200);
+      } finally {
+        await prisma.candidateSkill.delete({
+          where: {
+            id: candidateSkill.id,
+          },
+        });
+      }
     });
 
     it('should allow ADMIN to delete a skill', async () => {

@@ -141,7 +141,33 @@ export class SkillsService {
   }
 
   async remove(id: string) {
-    await this.findOne(id);
+    const skill = await this.prisma.skill.findUnique({
+      where: {
+        id,
+      },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            candidateSkills: true,
+            jobRequirements: true,
+          },
+        },
+      },
+    });
+
+    if (!skill) {
+      throw new NotFoundException('Skill not found');
+    }
+
+    if (
+      skill._count.candidateSkills > 0 ||
+      skill._count.jobRequirements > 0
+    ) {
+      throw new ConflictException(
+        'Skill cannot be deleted because it is still in use.',
+      );
+    }
 
     return this.prisma.skill.delete({
       where: {

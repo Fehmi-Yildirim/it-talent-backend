@@ -15,9 +15,18 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto): Promise<{
+    user: {
+      id: string;
+      email: string;
+      role: string;
+      status: string;
+      createdAt: Date;
+    };
+    accessToken: string;
+  }> {
     const email = dto.email.trim().toLowerCase();
 
     const existingUser = await this.prisma.user.findUnique({
@@ -35,7 +44,7 @@ export class AuthService {
       data: {
         email,
         passwordHash,
-        role: 'CANDIDATE',
+        role: dto.role,
         status: 'PENDING',
       },
       select: {

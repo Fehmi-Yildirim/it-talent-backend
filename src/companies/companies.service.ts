@@ -4,14 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
 import { PrismaService } from '../database/prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 
 @Injectable()
 export class CompaniesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async create(userId: string, dto: CreateCompanyDto) {
     const recruiter = await this.prisma.recruiter.findUnique({
@@ -40,6 +39,8 @@ export class CompaniesService {
           name,
           slug: await this.createUniqueSlug(name, tx),
           description: dto.description.trim(),
+          website: dto.website?.trim() || null,
+          location: dto.location?.trim() || null,
         },
       });
 
@@ -136,6 +137,12 @@ export class CompaniesService {
         }),
         ...(dto.description !== undefined && {
           description: dto.description.trim(),
+        }),
+        ...(dto.website !== undefined && {
+          website: dto.website.trim(),
+        }),
+        ...(dto.location !== undefined && {
+          location: dto.location.trim(),
         }),
       },
     });

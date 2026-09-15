@@ -1,4 +1,10 @@
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateCompanyDto {
   @IsString()
@@ -10,4 +16,14 @@ export class CreateCompanyDto {
   @MinLength(2)
   @MaxLength(255)
   description: string;
+
+  @IsOptional()
+  @IsUrl()
+  @MaxLength(255)
+  website?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  location?: string;
 }

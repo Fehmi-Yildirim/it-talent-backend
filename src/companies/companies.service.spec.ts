@@ -71,6 +71,8 @@ describe('CompaniesService', () => {
         name: 'Acme',
         slug: 'acme',
         description: 'Acme description',
+        website: 'https://acme.com',
+        location: 'Amsterdam',
       });
 
       prisma.recruiter.update.mockResolvedValue({
@@ -81,6 +83,8 @@ describe('CompaniesService', () => {
       const result = await service.create('user-1', {
         name: '  Acme  ',
         description: '  Acme description  ',
+        website: 'https://acme.com',
+        location: 'Amsterdam',
       });
 
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
@@ -90,6 +94,8 @@ describe('CompaniesService', () => {
           name: 'Acme',
           slug: 'acme',
           description: 'Acme description',
+          website: 'https://acme.com',
+          location: 'Amsterdam',
         },
       });
 
@@ -107,6 +113,55 @@ describe('CompaniesService', () => {
         name: 'Acme',
         slug: 'acme',
         description: 'Acme description',
+        website: 'https://acme.com',
+        location: 'Amsterdam',
+      });
+    });
+
+    it('should create a company without optional website and location', async () => {
+      prisma.recruiter.findUnique.mockResolvedValue({
+        id: 'recruiter-1',
+        companyId: null,
+      });
+
+      prisma.company.findUnique.mockResolvedValue(null);
+
+      prisma.company.create.mockResolvedValue({
+        id: 'company-1',
+        name: 'Acme',
+        slug: 'acme',
+        description: 'Description',
+        website: null,
+        location: null,
+      });
+
+      prisma.recruiter.update.mockResolvedValue({
+        id: 'recruiter-1',
+        companyId: 'company-1',
+      });
+
+      const result = await service.create('user-1', {
+        name: 'Acme',
+        description: 'Description',
+      });
+
+      expect(prisma.company.create).toHaveBeenCalledWith({
+        data: {
+          name: 'Acme',
+          slug: 'acme',
+          description: 'Description',
+          website: null,
+          location: null,
+        },
+      });
+
+      expect(result).toEqual({
+        id: 'company-1',
+        name: 'Acme',
+        slug: 'acme',
+        description: 'Description',
+        website: null,
+        location: null,
       });
     });
 
@@ -162,6 +217,8 @@ describe('CompaniesService', () => {
         name: 'Acme',
         slug: 'acme-1',
         description: 'Description',
+        website: 'https://acme.com',
+        location: 'Amsterdam',
       });
 
       prisma.recruiter.update.mockResolvedValue({
@@ -172,6 +229,8 @@ describe('CompaniesService', () => {
       await service.create('user-1', {
         name: 'Acme',
         description: 'Description',
+        website: 'https://acme.com',
+        location: 'Amsterdam',
       });
 
       expect(prisma.company.findUnique).toHaveBeenNthCalledWith(1, {
@@ -197,6 +256,8 @@ describe('CompaniesService', () => {
           name: 'Acme',
           slug: 'acme-1',
           description: 'Description',
+          website: 'https://acme.com',
+          location: 'Amsterdam',
         },
       });
 
@@ -229,6 +290,8 @@ describe('CompaniesService', () => {
         name: 'Acme',
         slug: 'acme',
         description: 'Description',
+        website: 'https://acme.com',
+        location: 'Amsterdam',
       };
 
       prisma.recruiter.findUnique.mockResolvedValue({
@@ -287,11 +350,15 @@ describe('CompaniesService', () => {
         name: 'Updated Acme',
         slug: 'acme',
         description: 'Updated description',
+        website: 'https://acme.com',
+        location: 'Amsterdam',
       });
 
       const result = await service.updateMyCompany('user-1', {
         name: '  Updated Acme  ',
         description: '  Updated description  ',
+        website: 'https://acme.com',
+        location: 'Amsterdam',
       });
 
       expect(prisma.company.update).toHaveBeenCalledWith({
@@ -301,6 +368,8 @@ describe('CompaniesService', () => {
         data: {
           name: 'Updated Acme',
           description: 'Updated description',
+          website: 'https://acme.com',
+          location: 'Amsterdam',
         },
       });
 
@@ -309,6 +378,8 @@ describe('CompaniesService', () => {
         name: 'Updated Acme',
         slug: 'acme',
         description: 'Updated description',
+        website: 'https://acme.com',
+        location: 'Amsterdam',
       });
     });
   });

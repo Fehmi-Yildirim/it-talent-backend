@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsDateString,
   IsEnum,
   IsInt,
   IsOptional,
@@ -7,10 +8,9 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
-
 import { EmploymentType, WorkMode } from '../../../generated/prisma/client';
-
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class UpdateJobDto {
   @IsOptional()
@@ -30,14 +30,24 @@ export class UpdateJobDto {
   workMode?: WorkMode;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(0)
   salaryMin?: number;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(0)
   salaryMax?: number;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
 
   @IsOptional()
   @IsString()
@@ -55,8 +65,7 @@ export class UpdateJobDto {
   @IsArray()
   @IsUUID('4', { each: true })
   @ApiPropertyOptional({
-    description:
-      'Replaces the complete list of preferred skills when provided.',
+    description: 'Replaces the complete list of preferred skills when provided.',
   })
   preferredSkillIds?: string[];
 }

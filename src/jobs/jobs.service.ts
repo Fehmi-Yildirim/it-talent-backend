@@ -5,9 +5,7 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
-
 import { PrismaService } from '../database/prisma.service';
-
 import { CreateJobDto } from './dto/create-job.dto';
 import { GetJobsQueryDto } from './dto/get-jobs-query.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
@@ -538,6 +536,9 @@ export class JobsService {
 
         const updateData: Prisma.JobUpdateInput = {
             ...jobData,
+            ...(dto.expiresAt !== undefined
+                ? { expiresAt: new Date(dto.expiresAt) }
+                : {}),
             ...(requiredSkillIds !== undefined || preferredSkillIds !== undefined
                 ? {
                     requirements: {

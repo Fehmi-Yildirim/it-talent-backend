@@ -18,6 +18,10 @@ interface JobResponse {
   location: string;
   employmentType: string;
   workMode: string;
+  salaryMin: number | string | null;
+  salaryMax: number | string | null;
+  currency: string | null;
+  expiresAt: string | null;
   status: string;
   publishedAt: string | null;
 }
@@ -525,7 +529,7 @@ describe('08 - Jobs (e2e)', () => {
   });
 
   describe('update job', () => {
-    it('should update the job', async () => {
+    it('should update the job including salary, currency and expiration date', async () => {
       const response = await request(app.getHttpServer())
         .patch(`/api/v1/jobs/${jobId}`)
         .set('Authorization', `Bearer ${recruiterToken}`)
@@ -534,6 +538,8 @@ describe('08 - Jobs (e2e)', () => {
           location: 'Rotterdam',
           salaryMin: 4500,
           salaryMax: 6500,
+          currency: 'EUR',
+          expiresAt: '2026-10-15',
         })
         .expect(200);
 
@@ -543,6 +549,10 @@ describe('08 - Jobs (e2e)', () => {
         id: jobId,
         title: 'Senior Backend Developer',
         location: 'Rotterdam',
+        salaryMin: '4500',
+        salaryMax: '6500',
+        currency: 'EUR',
+        expiresAt: '2026-10-15T00:00:00.000Z',
       });
     });
 

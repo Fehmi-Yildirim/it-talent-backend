@@ -1055,6 +1055,13 @@ describe('JobsService', () => {
         status: 'PUBLISHED',
         publishedAt: expect.any(Date),
       },
+      include: {
+        requirements: {
+          include: {
+            skill: true,
+          },
+        },
+      },
     });
 
     expect(result.status).toBe('PUBLISHED');
@@ -1085,6 +1092,13 @@ describe('JobsService', () => {
       },
       data: {
         status: 'CLOSED',
+      },
+      include: {
+        requirements: {
+          include: {
+            skill: true,
+          },
+        },
       },
     });
 
@@ -1144,6 +1158,240 @@ describe('JobsService', () => {
       limit: 10,
       totalPages: 1,
     });
+  });
+
+  it('should pause a published job', async () => {
+    prisma.recruiter.findUnique.mockResolvedValue({
+      companyId: 'company-a',
+    } satisfies RecruiterRecord);
+
+    prisma.job.findFirst.mockResolvedValue({
+      id: 'job-1',
+      status: 'PUBLISHED',
+    } satisfies JobRecord);
+
+    prisma.job.update.mockResolvedValue({
+      id: 'job-1',
+      status: 'PAUSED',
+    } satisfies JobRecord);
+
+    const result = await serviceResult<{ status: string }>(() =>
+      service.pause('user-a', 'job-1'),
+    );
+
+    expect(prisma.job.update).toHaveBeenCalledWith({
+      where: {
+        id: 'job-1',
+      },
+      data: {
+        status: 'PAUSED',
+      },
+      include: {
+        requirements: {
+          include: {
+            skill: true,
+          },
+        },
+      },
+    });
+
+    expect(result.status).toBe('PAUSED');
+  });
+
+  it('should resume a paused job', async () => {
+    prisma.recruiter.findUnique.mockResolvedValue({
+      companyId: 'company-a',
+    } satisfies RecruiterRecord);
+
+    prisma.job.findFirst.mockResolvedValue({
+      id: 'job-1',
+      status: 'PAUSED',
+    } satisfies JobRecord);
+
+    prisma.job.update.mockResolvedValue({
+      id: 'job-1',
+      status: 'PUBLISHED',
+    } satisfies JobRecord);
+
+    const result = await serviceResult<{ status: string }>(() =>
+      service.resume('user-a', 'job-1'),
+    );
+
+    expect(prisma.job.update).toHaveBeenCalledWith({
+      where: {
+        id: 'job-1',
+      },
+      data: {
+        status: 'PUBLISHED',
+      },
+      include: {
+        requirements: {
+          include: {
+            skill: true,
+          },
+        },
+      },
+    });
+
+    expect(result.status).toBe('PUBLISHED');
+  });
+
+  it('should close a paused job', async () => {
+    prisma.recruiter.findUnique.mockResolvedValue({
+      companyId: 'company-a',
+    } satisfies RecruiterRecord);
+
+    prisma.job.findFirst.mockResolvedValue({
+      id: 'job-1',
+      status: 'PAUSED',
+    } satisfies JobRecord);
+
+    prisma.job.update.mockResolvedValue({
+      id: 'job-1',
+      status: 'CLOSED',
+    } satisfies JobRecord);
+
+    const result = await serviceResult<{ status: string }>(() =>
+      service.close('user-a', 'job-1'),
+    );
+
+    expect(prisma.job.update).toHaveBeenCalledWith({
+      where: {
+        id: 'job-1',
+      },
+      data: {
+        status: 'CLOSED',
+      },
+      include: {
+        requirements: {
+          include: {
+            skill: true,
+          },
+        },
+      },
+    });
+
+    expect(result.status).toBe('CLOSED');
+  });
+
+  it('should reopen a closed job as draft', async () => {
+    prisma.recruiter.findUnique.mockResolvedValue({
+      companyId: 'company-a',
+    } satisfies RecruiterRecord);
+
+    prisma.job.findFirst.mockResolvedValue({
+      id: 'job-1',
+      status: 'CLOSED',
+    } satisfies JobRecord);
+
+    prisma.job.update.mockResolvedValue({
+      id: 'job-1',
+      status: 'DRAFT',
+    } satisfies JobRecord);
+
+    const result = await serviceResult<{ status: string }>(() =>
+      service.reopen('user-a', 'job-1'),
+    );
+
+    expect(prisma.job.update).toHaveBeenCalledWith({
+      where: {
+        id: 'job-1',
+      },
+      data: {
+        status: 'DRAFT',
+      },
+      include: {
+        requirements: {
+          include: {
+            skill: true,
+          },
+        },
+      },
+    });
+
+    expect(result.status).toBe('DRAFT');
+  });
+
+  it('should reject pausing a draft job', async () => {
+    prisma.recruiter.findUnique.mockResolvedValue({
+      companyId: 'company-a',
+    } satisfies RecruiterRecord);
+
+    prisma.job.findFirst.mockResolvedValue({
+      id: 'job-1',
+      status: 'DRAFT',
+    } satisfies JobRecord);
+
+    await expect(
+      service.pause('user-a', 'job-1'),
+    ).rejects.toThrow('Only published jobs can be paused');
+
+    expect(prisma.job.update).not.toHaveBeenCalled();
+  });
+
+  it('should reject resuming a published job', async () => {
+    prisma.recruiter.findUnique.mockResolvedValue({
+      companyId: 'company-a',
+    } satisfies RecruiterRecord);
+
+    prisma.job.findFirst.mockResolvedValue({
+      id: 'job-1',
+      status: 'PUBLISHED',
+    } satisfies JobRecord);
+
+    await expect(
+      service.resume('user-a', 'job-1'),
+    ).rejects.toThrow('Only paused jobs can be resumed');
+
+    expect(prisma.job.update).not.toHaveBeenCalled();
+  });
+
+  it('should reject closing a draft job', async () => {
+    prisma.recruiter.findUnique.mockResolvedValue({
+      companyId: 'company-a',
+    } satisfies RecruiterRecord);
+
+    prisma.job.findFirst.mockResolvedValue({
+      id: 'job-1',
+      status: 'DRAFT',
+    } satisfies JobRecord);
+
+    await expect(
+      service.close('user-a', 'job-1'),
+    ).rejects.toThrow('Only published or paused jobs can be closed');
+
+    expect(prisma.job.update).not.toHaveBeenCalled();
+  });
+
+  it('should reject reopening a published job', async () => {
+    prisma.recruiter.findUnique.mockResolvedValue({
+      companyId: 'company-a',
+    } satisfies RecruiterRecord);
+
+    prisma.job.findFirst.mockResolvedValue({
+      id: 'job-1',
+      status: 'PUBLISHED',
+    } satisfies JobRecord);
+
+    await expect(
+      service.reopen('user-a', 'job-1'),
+    ).rejects.toThrow('Only closed jobs can be reopened');
+
+    expect(prisma.job.update).not.toHaveBeenCalled();
+  });
+
+  it('should reject pausing a job from another company', async () => {
+    prisma.recruiter.findUnique.mockResolvedValue({
+      companyId: 'company-a',
+    } satisfies RecruiterRecord);
+
+    prisma.job.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.pause('user-a', 'job-from-company-b'),
+    ).rejects.toThrow('Job not found');
+
+    expect(prisma.job.update).not.toHaveBeenCalled();
   });
 
   it('should reject an invalid discovery salary range', async () => {

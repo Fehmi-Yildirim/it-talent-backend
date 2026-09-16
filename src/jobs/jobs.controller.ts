@@ -36,7 +36,10 @@ export class JobsController {
     constructor(private readonly jobsService: JobsService) { }
 
     @Post()
-    async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateJobDto) {
+    async create(
+        @Req() req: AuthenticatedRequest,
+        @Body() dto: CreateJobDto,
+    ) {
         return this.jobsService.create(req.user.id, dto);
     }
 
@@ -100,9 +103,36 @@ export class JobsController {
         return this.jobsService.publish(req.user.id, jobId);
     }
 
+    @Post(':jobId/pause')
+    async pause(
+        @Req() req: AuthenticatedRequest,
+        @Param('jobId') jobId: string,
+    ) {
+        return this.jobsService.pause(req.user.id, jobId);
+    }
+
+    @Post(':jobId/resume')
+    async resume(
+        @Req() req: AuthenticatedRequest,
+        @Param('jobId') jobId: string,
+    ) {
+        return this.jobsService.resume(req.user.id, jobId);
+    }
+
     @Post(':jobId/close')
-    async close(@Req() req: AuthenticatedRequest, @Param('jobId') jobId: string) {
+    async close(
+        @Req() req: AuthenticatedRequest,
+        @Param('jobId') jobId: string,
+    ) {
         return this.jobsService.close(req.user.id, jobId);
+    }
+
+    @Post(':jobId/reopen')
+    async reopen(
+        @Req() req: AuthenticatedRequest,
+        @Param('jobId') jobId: string,
+    ) {
+        return this.jobsService.reopen(req.user.id, jobId);
     }
 
     @Get(':jobId/requirements')
@@ -119,7 +149,11 @@ export class JobsController {
         @Param('jobId') jobId: string,
         @Body() dto: UpdateJobRequirementsDto,
     ) {
-        return this.jobsService.updateRequirements(req.user.id, jobId, dto);
+        return this.jobsService.updateRequirements(
+            req.user.id,
+            jobId,
+            dto,
+        );
     }
 
     @Delete(':jobId/requirements/:skillId')
@@ -128,7 +162,11 @@ export class JobsController {
         @Param('jobId') jobId: string,
         @Param('skillId') skillId: string,
     ) {
-        return this.jobsService.removeRequirement(req.user.id, jobId, skillId);
+        return this.jobsService.removeRequirement(
+            req.user.id,
+            jobId,
+            skillId,
+        );
     }
 
     @Post(':jobId/requirements')
@@ -137,7 +175,11 @@ export class JobsController {
         @Param('jobId') jobId: string,
         @Body() dto: CreateJobRequirementDto,
     ) {
-        return this.jobsService.createRequirement(req.user.id, jobId, dto);
+        return this.jobsService.createRequirement(
+            req.user.id,
+            jobId,
+            dto,
+        );
     }
 
     @Patch(':jobId/requirements/:requirementId')
@@ -154,6 +196,4 @@ export class JobsController {
             dto,
         );
     }
-
-
 }

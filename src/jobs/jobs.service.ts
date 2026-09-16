@@ -614,10 +614,127 @@ export class JobsService {
                 status: 'PUBLISHED',
                 publishedAt: new Date(),
             },
+            include: {
+                requirements: {
+                    include: {
+                        skill: true,
+                    },
+                },
+            },
         });
     }
 
-    // Close a published job
+    // Pause a published job
+    async pause(userId: string, jobId: string) {
+        const recruiter = await this.prisma.recruiter.findUnique({
+            where: {
+                userId,
+            },
+            select: {
+                companyId: true,
+            },
+        });
+
+        if (!recruiter) {
+            throw new ForbiddenException('Only recruiters can pause jobs');
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException('Recruiter is not assigned to a company');
+        }
+
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                companyId: recruiter.companyId,
+            },
+            select: {
+                id: true,
+                status: true,
+            },
+        });
+
+        if (!job) {
+            throw new NotFoundException('Job not found');
+        }
+
+        if (job.status !== 'PUBLISHED') {
+            throw new BadRequestException('Only published jobs can be paused');
+        }
+
+        return this.prisma.job.update({
+            where: {
+                id: job.id,
+            },
+            data: {
+                status: 'PAUSED',
+            },
+            include: {
+                requirements: {
+                    include: {
+                        skill: true,
+                    },
+                },
+            },
+        });
+    }
+
+    // Resume a paused job
+    async resume(userId: string, jobId: string) {
+        const recruiter = await this.prisma.recruiter.findUnique({
+            where: {
+                userId,
+            },
+            select: {
+                companyId: true,
+            },
+        });
+
+        if (!recruiter) {
+            throw new ForbiddenException('Only recruiters can resume jobs');
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException('Recruiter is not assigned to a company');
+        }
+
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                companyId: recruiter.companyId,
+            },
+            select: {
+                id: true,
+                status: true,
+            },
+        });
+
+        if (!job) {
+            throw new NotFoundException('Job not found');
+        }
+
+        if (job.status !== 'PAUSED') {
+            throw new BadRequestException('Only paused jobs can be resumed');
+        }
+
+        return this.prisma.job.update({
+            where: {
+                id: job.id,
+            },
+            data: {
+                status: 'PUBLISHED',
+            },
+            include: {
+                requirements: {
+                    include: {
+                        skill: true,
+                    },
+                },
+            },
+        });
+    }
+
+    // Close a published or paused job
     async close(userId: string, jobId: string) {
         const recruiter = await this.prisma.recruiter.findUnique({
             where: {
@@ -651,8 +768,10 @@ export class JobsService {
             throw new NotFoundException('Job not found');
         }
 
-        if (job.status !== 'PUBLISHED') {
-            throw new BadRequestException('Only published jobs can be closed');
+        if (job.status !== 'PUBLISHED' && job.status !== 'PAUSED') {
+            throw new BadRequestException(
+                'Only published or paused jobs can be closed',
+            );
         }
 
         return this.prisma.job.update({
@@ -661,6 +780,68 @@ export class JobsService {
             },
             data: {
                 status: 'CLOSED',
+            },
+            include: {
+                requirements: {
+                    include: {
+                        skill: true,
+                    },
+                },
+            },
+        });
+    }
+
+    // Reopen a closed job as draft
+    async reopen(userId: string, jobId: string) {
+        const recruiter = await this.prisma.recruiter.findUnique({
+            where: {
+                userId,
+            },
+            select: {
+                companyId: true,
+            },
+        });
+
+        if (!recruiter) {
+            throw new ForbiddenException('Only recruiters can reopen jobs');
+        }
+
+        if (!recruiter.companyId) {
+            throw new BadRequestException('Recruiter is not assigned to a company');
+        }
+
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                companyId: recruiter.companyId,
+            },
+            select: {
+                id: true,
+                status: true,
+            },
+        });
+
+        if (!job) {
+            throw new NotFoundException('Job not found');
+        }
+
+        if (job.status !== 'CLOSED') {
+            throw new BadRequestException('Only closed jobs can be reopened');
+        }
+
+        return this.prisma.job.update({
+            where: {
+                id: job.id,
+            },
+            data: {
+                status: 'DRAFT',
+            },
+            include: {
+                requirements: {
+                    include: {
+                        skill: true,
+                    },
+                },
             },
         });
     }

@@ -39,6 +39,8 @@ describe('06 - Recruiter Authorization & Company Isolation (e2e)', () => {
       data: {
         email: recruiterAEmail,
         passwordHash: recruiterAPasswordHash,
+        firstName: 'Test',
+        lastName: 'Recruiter',
         role: 'RECRUITER',
         status: 'ACTIVE',
       },
@@ -69,6 +71,8 @@ describe('06 - Recruiter Authorization & Company Isolation (e2e)', () => {
       data: {
         email: recruiterBEmail,
         passwordHash: recruiterBPasswordHash,
+        firstName: 'Test',
+        lastName: 'Recruiter',
         role: 'RECRUITER',
         status: 'ACTIVE',
       },
@@ -176,6 +180,8 @@ describe('06 - Recruiter Authorization & Company Isolation (e2e)', () => {
       data: {
         email: candidateEmail,
         passwordHash: candidatePasswordHash,
+        firstName: 'Test',
+        lastName: 'Candidate',
         role: 'CANDIDATE',
         status: 'ACTIVE',
       },

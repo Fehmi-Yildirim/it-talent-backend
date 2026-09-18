@@ -41,6 +41,8 @@ describe('05 - Recruiter & Company (e2e)', () => {
       data: {
         email,
         passwordHash,
+        firstName: 'Test',
+        lastName: 'Recruiter',
         role: 'RECRUITER',
         status: 'ACTIVE',
       },
@@ -85,6 +87,8 @@ describe('05 - Recruiter & Company (e2e)', () => {
       data: {
         email: candidateEmail,
         passwordHash: candidatePasswordHash,
+        firstName: 'Test',
+        lastName: 'Candidate',
         role: 'CANDIDATE',
         status: 'ACTIVE',
       },
@@ -118,6 +122,8 @@ describe('05 - Recruiter & Company (e2e)', () => {
       data: {
         email: secondRecruiterEmail,
         passwordHash: secondRecruiterPasswordHash,
+        firstName: 'Test',
+        lastName: 'Recruiter',
         role: 'RECRUITER',
         status: 'ACTIVE',
       },

@@ -234,7 +234,13 @@ export class JobsService {
         }
 
         // Filter by work mode
-        if (query.workMode) {
+        if (query.workModes && query.workModes.length > 0) {
+            andFilters.push({
+                workMode: {
+                    in: query.workModes,
+                },
+            });
+        } else if (query.workMode) {
             andFilters.push({
                 workMode: query.workMode,
             });

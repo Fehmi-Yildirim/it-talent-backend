@@ -76,6 +76,8 @@ describe('08 - Jobs (e2e)', () => {
       data: {
         email: recruiterEmail,
         passwordHash: recruiterPasswordHash,
+        firstName: 'Test',
+        lastName: 'Recruiter',
         role: 'RECRUITER',
         status: 'ACTIVE',
       },
@@ -119,6 +121,8 @@ describe('08 - Jobs (e2e)', () => {
       data: {
         email: secondRecruiterEmail,
         passwordHash: secondRecruiterPasswordHash,
+        firstName: 'Test',
+        lastName: 'Recruiter',
         role: 'RECRUITER',
         status: 'ACTIVE',
       },
@@ -161,6 +165,8 @@ describe('08 - Jobs (e2e)', () => {
       data: {
         email: candidateEmail,
         passwordHash: candidatePasswordHash,
+        firstName: 'Test',
+        lastName: 'Candidate',
         role: 'CANDIDATE',
         status: 'ACTIVE',
       },

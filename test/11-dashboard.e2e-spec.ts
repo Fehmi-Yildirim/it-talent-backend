@@ -69,6 +69,8 @@ describe('11 - Dashboard (e2e)', () => {
             data: {
                 email: `e2e-dashboard-candidate-${timestamp}@example.com`,
                 passwordHash: candidateHash,
+                firstName: 'Test',
+                lastName: 'Candidate',
                 role: 'CANDIDATE',
                 status: 'ACTIVE',
             },
@@ -104,6 +106,8 @@ describe('11 - Dashboard (e2e)', () => {
             data: {
                 email: `e2e-dashboard-candidate-2-${timestamp}@example.com`,
                 passwordHash: secondCandidateHash,
+                firstName: 'Test',
+                lastName: 'Candidate',
                 role: 'CANDIDATE',
                 status: 'ACTIVE',
             },
@@ -137,6 +141,8 @@ describe('11 - Dashboard (e2e)', () => {
             data: {
                 email: `e2e-dashboard-recruiter-${timestamp}@example.com`,
                 passwordHash: recruiterHash,
+                firstName: 'Test',
+                lastName: 'Recruiter',
                 role: 'RECRUITER',
                 status: 'ACTIVE',
             },
@@ -166,6 +172,8 @@ describe('11 - Dashboard (e2e)', () => {
             data: {
                 email: `e2e-dashboard-recruiter-2-${timestamp}@example.com`,
                 passwordHash: secondRecruiterHash,
+                firstName: 'Test',
+                lastName: 'Recruiter',
                 role: 'RECRUITER',
                 status: 'ACTIVE',
             },

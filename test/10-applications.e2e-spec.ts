@@ -110,6 +110,8 @@ describe('10 - Applications (e2e)', () => {
             data: {
                 email: `e2e-application-candidate-${timestamp}@example.com`,
                 passwordHash: candidatePasswordHash,
+                firstName: 'Test',
+                lastName: 'Candidate',
                 role: 'CANDIDATE',
                 status: 'ACTIVE',
             },
@@ -143,6 +145,8 @@ describe('10 - Applications (e2e)', () => {
             data: {
                 email: `e2e-application-candidate-2-${timestamp}@example.com`,
                 passwordHash: secondCandidatePasswordHash,
+                firstName: 'Test',
+                lastName: 'Candidate',
                 role: 'CANDIDATE',
                 status: 'ACTIVE',
             },
@@ -178,6 +182,8 @@ describe('10 - Applications (e2e)', () => {
             data: {
                 email: `e2e-application-recruiter-${timestamp}@example.com`,
                 passwordHash: recruiterPasswordHash,
+                firstName: 'Test',
+                lastName: 'Recruiter',
                 role: 'RECRUITER',
                 status: 'ACTIVE',
             },
@@ -210,6 +216,8 @@ describe('10 - Applications (e2e)', () => {
             data: {
                 email: `e2e-application-recruiter-2-${timestamp}@example.com`,
                 passwordHash: secondRecruiterPasswordHash,
+                firstName: 'Test',
+                lastName: 'Recruiter',
                 role: 'RECRUITER',
                 status: 'ACTIVE',
             },

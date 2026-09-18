@@ -33,6 +33,39 @@ export class GetJobsQueryDto {
   workMode?: 'REMOTE' | 'HYBRID' | 'ONSITE' | 'FLEXIBLE';
 
   @ApiPropertyOptional({
+    description: 'Comma-separated work modes',
+    enum: ['REMOTE', 'HYBRID', 'ONSITE', 'FLEXIBLE'],
+    isArray: true,
+  })
+  @IsOptional()
+  @Transform(
+    ({ value }: { value: unknown }): string[] | undefined => {
+      if (value === undefined || value === null || value === '') {
+        return undefined;
+      }
+
+      if (typeof value === 'string') {
+        return value
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      if (
+        Array.isArray(value) &&
+        value.every((item) => typeof item === 'string')
+      ) {
+        return value;
+      }
+
+      return undefined;
+    },
+  )
+  @IsArray()
+  @IsEnum(['REMOTE', 'HYBRID', 'ONSITE', 'FLEXIBLE'], { each: true })
+  workModes?: Array<'REMOTE' | 'HYBRID' | 'ONSITE' | 'FLEXIBLE'>;
+
+  @ApiPropertyOptional({
     enum: ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE', 'INTERNSHIP'],
   })
   @IsOptional()

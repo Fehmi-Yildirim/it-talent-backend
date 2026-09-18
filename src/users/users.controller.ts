@@ -27,12 +27,26 @@ type AuthenticatedRequest = Request & {
 @Controller('users')
 @ApiBearerAuth('access-token')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
   getMe(@Req() req: AuthenticatedRequest) {
     return this.usersService.getMe(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  updateMe(
+    @Body() dto: UpdateUserDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.usersService.update(
+      req.user.id,
+      dto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Roles(UserRole.ADMIN)

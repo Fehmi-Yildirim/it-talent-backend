@@ -58,6 +58,8 @@ describe('UsersController', () => {
       const result = {
         id: 'user-1',
         email: 'user@example.com',
+        firstName: 'Test',
+        lastName: 'User',
       };
 
       usersService.getMe.mockResolvedValue(result);
@@ -73,6 +75,8 @@ describe('UsersController', () => {
       const dto = {
         email: 'user@example.com',
         password: 'password',
+        firstName: 'Test',
+        lastName: 'User',
         role: UserRole.CANDIDATE,
         status: UserStatus.ACTIVE,
       };
@@ -80,6 +84,8 @@ describe('UsersController', () => {
       const result = {
         id: 'user-1',
         email: 'user@example.com',
+        firstName: 'Test',
+        lastName: 'User',
       };
 
       usersService.create.mockResolvedValue(result);
@@ -96,6 +102,8 @@ describe('UsersController', () => {
         {
           id: 'user-1',
           email: 'user@example.com',
+          firstName: 'Test',
+          lastName: 'User',
         },
       ];
 
@@ -121,6 +129,8 @@ describe('UsersController', () => {
       const result = {
         id: 'user-1',
         email: 'user@example.com',
+        firstName: 'Test',
+        lastName: 'User',
       };
 
       usersService.findOne.mockResolvedValue(result);
@@ -147,12 +157,15 @@ describe('UsersController', () => {
       } as ControllerRequest;
 
       const dto = {
-        email: 'new@example.com',
+        firstName: 'Updated',
+        lastName: 'User',
       };
 
       const result = {
         id: 'user-1',
-        email: 'new@example.com',
+        email: 'user@example.com',
+        firstName: 'Updated',
+        lastName: 'User',
       };
 
       usersService.update.mockResolvedValue(result);
@@ -184,6 +197,8 @@ describe('UsersController', () => {
       const result = {
         id: 'user-1',
         email: 'user@example.com',
+        firstName: 'Test',
+        lastName: 'User',
       };
 
       usersService.remove.mockResolvedValue(result);

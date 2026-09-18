@@ -21,6 +21,8 @@ export class AuthService {
     user: {
       id: string;
       email: string;
+      firstName: string;
+      lastName: string;
       role: string;
       status: string;
       createdAt: Date;
@@ -34,22 +36,28 @@ export class AuthService {
       select: { id: true },
     });
 
+
     if (existingUser) {
       throw new ConflictException('Unable to create account');
     }
 
     const passwordHash = await argon2.hash(dto.password);
 
+
     const user = await this.prisma.user.create({
       data: {
         email,
         passwordHash,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
         role: dto.role,
         status: 'PENDING',
       },
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
         role: true,
         status: true,
         createdAt: true,
@@ -58,7 +66,7 @@ export class AuthService {
 
     return {
       user,
-      accessToken: await this.signToken(user.id, user.email, user.role),
+      accessToken: await this.signToken(user.id, user.email, user.firstName, user.lastName, user.role),
     };
   }
 
@@ -87,21 +95,27 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
         role: user.role,
         status: user.status,
       },
-      accessToken: await this.signToken(user.id, user.email, user.role),
+      accessToken: await this.signToken(user.id, user.email, user.firstName, user.lastName, user.role),
     };
   }
 
   private signToken(
     userId: string,
     email: string,
+    firstName: string,
+    lastName: string,
     role: string,
   ): Promise<string> {
     return this.jwtService.signAsync({
       sub: userId,
       email,
+      firstName,
+      lastName,
       role,
     });
   }

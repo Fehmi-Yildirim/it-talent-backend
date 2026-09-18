@@ -24,6 +24,8 @@ model User {
   id           String     @id @default(uuid()) @db.Uuid
   email        String     @unique
   passwordHash String
+  firstName    String
+  lastName     String
   role         UserRole
   status       UserStatus @default(PENDING)
   createdAt    DateTime   @default(now())

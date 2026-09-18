@@ -13,7 +13,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async getMe(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -23,6 +23,8 @@ export class UsersService {
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
         role: true,
         status: true,
         createdAt: true,
@@ -59,12 +61,16 @@ export class UsersService {
       data: {
         email,
         passwordHash,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
         role: dto.role,
         status: dto.status,
       },
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
         role: true,
         status: true,
         createdAt: true,
@@ -78,6 +84,8 @@ export class UsersService {
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
         role: true,
         status: true,
         createdAt: true,
@@ -101,6 +109,8 @@ export class UsersService {
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
         role: true,
         status: true,
         createdAt: true,
@@ -135,6 +145,8 @@ export class UsersService {
     const data: {
       email?: string;
       passwordHash?: string;
+      firstName?: string;
+      lastName?: string;
       role?: CreateUserDto['role'];
       status?: CreateUserDto['status'];
     } = {};
@@ -160,6 +172,14 @@ export class UsersService {
 
     if (dto.password !== undefined) {
       data.passwordHash = await argon2.hash(dto.password);
+    }
+
+    if (dto.firstName !== undefined) {
+      data.firstName = dto.firstName.trim();
+    }
+
+    if (dto.lastName !== undefined) {
+      data.lastName = dto.lastName.trim();
     }
 
     if (dto.role !== undefined) {
@@ -207,6 +227,8 @@ export class UsersService {
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
         role: true,
         status: true,
         createdAt: true,
@@ -240,6 +262,8 @@ export class UsersService {
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
         role: true,
         status: true,
       },

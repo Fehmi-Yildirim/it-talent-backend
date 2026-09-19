@@ -725,7 +725,140 @@ describe('09 - Job Discovery (e2e)', () => {
         ).toBe(true);
     });
 
-    it('20 - should filter by minimum salary', async () => {
+    it('20 - should filter jobs by multiple employment types', async () => {
+        const response = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                employmentTypes: 'FULL_TIME,PART_TIME',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const body = response.body as PaginatedJobsResponse;
+
+        expect(body.items.length).toBeGreaterThan(0);
+
+        expect(
+            body.items.every(
+                (job) =>
+                    job.employmentType === 'FULL_TIME' ||
+                    job.employmentType === 'PART_TIME',
+            ),
+        ).toBe(true);
+
+        expect(body.items.map((job) => job.id)).toEqual(
+            expect.arrayContaining([
+                publishedJobId,
+                secondPublishedJobId,
+            ]),
+        );
+    });
+
+    it('21 - should support any combination of employment types', async () => {
+        const response = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                employmentTypes:
+                    'FULL_TIME,PART_TIME,CONTRACT,FREELANCE,INTERNSHIP',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const body = response.body as PaginatedJobsResponse;
+
+        expect(body.items.length).toBeGreaterThan(0);
+
+        expect(
+            body.items.every((job) =>
+                [
+                    'FULL_TIME',
+                    'PART_TIME',
+                    'CONTRACT',
+                    'FREELANCE',
+                    'INTERNSHIP',
+                ].includes(job.employmentType),
+            ),
+        ).toBe(true);
+
+        expect(body.items.map((job) => job.id)).toEqual(
+            expect.arrayContaining([
+                publishedJobId,
+                secondPublishedJobId,
+            ]),
+        );
+    });
+
+    it('22 - should reject an invalid employment type in employmentTypes', async () => {
+        await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                employmentTypes: 'FULL_TIME,INVALID',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(400);
+    });
+
+    it('23 - should filter multiple employment types together with other filters', async () => {
+        const response = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                employmentTypes: 'FULL_TIME,PART_TIME',
+                location: 'Amsterdam',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const body = response.body as PaginatedJobsResponse;
+
+        expect(body.items.length).toBeGreaterThan(0);
+
+        expect(
+            body.items.every(
+                (job) =>
+                    (job.employmentType === 'FULL_TIME' ||
+                        job.employmentType === 'PART_TIME') &&
+                    job.location.toLowerCase().includes('amsterdam'),
+            ),
+        ).toBe(true);
+
+        expect(
+            body.items.some((job) => job.id === publishedJobId),
+        ).toBe(true);
+
+        expect(
+            body.items.some((job) => job.id === secondPublishedJobId),
+        ).toBe(false);
+    });
+
+    it('24 - should still support the singular employmentType parameter', async () => {
+        const response = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                employmentType: 'FULL_TIME',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const body = response.body as PaginatedJobsResponse;
+
+        expect(body.items.length).toBeGreaterThan(0);
+
+        expect(
+            body.items.every(
+                (job) => job.employmentType === 'FULL_TIME',
+            ),
+        ).toBe(true);
+
+        expect(body.items.some((job) => job.id === publishedJobId)).toBe(
+            true,
+        );
+
+        expect(
+            body.items.some((job) => job.id === secondPublishedJobId),
+        ).toBe(false);
+    });
+
+    it('25 - should filter by minimum salary', async () => {
         const response = await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -742,7 +875,7 @@ describe('09 - Job Discovery (e2e)', () => {
         ).toBe(false);
     });
 
-    it('21 - should filter by maximum salary', async () => {
+    it('26 - should filter by maximum salary', async () => {
         const response = await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -761,7 +894,7 @@ describe('09 - Job Discovery (e2e)', () => {
         );
     });
 
-    it('22 - should filter by salary range', async () => {
+    it('27 - should filter by salary range', async () => {
         const response = await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -781,7 +914,7 @@ describe('09 - Job Discovery (e2e)', () => {
         );
     });
 
-    it('23 - should filter jobs by skill ID', async () => {
+    it('28 - should filter jobs by skill ID', async () => {
         const response = await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -798,7 +931,7 @@ describe('09 - Job Discovery (e2e)', () => {
         ).toBe(false);
     });
 
-    it('24 - should filter jobs by multiple skill IDs', async () => {
+    it('29 - should filter jobs by multiple skill IDs', async () => {
         const response = await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -815,7 +948,7 @@ describe('09 - Job Discovery (e2e)', () => {
         ).toBe(false);
     });
 
-    it('25 - should sort jobs by newest', async () => {
+    it('30 - should sort jobs by newest', async () => {
         const response = await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -830,7 +963,7 @@ describe('09 - Job Discovery (e2e)', () => {
         expect(body.items[0].id).toBe(publishedJobId);
     });
 
-    it('26 - should sort jobs by salary', async () => {
+    it('31 - should sort jobs by salary', async () => {
         const response = await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -847,18 +980,9 @@ describe('09 - Job Discovery (e2e)', () => {
         );
     });
 
-    it('27 - should sort jobs by title', async () => {
-        const response = await request(app.getHttpServer())
-            .get('/api/v1/jobs')
-            .query({
-                sort: 'title',
-            })
-            .set('Authorization', `Bearer ${candidateToken}`)
-            .expect(200);
-    });
 
 
-    it('28 - should paginate results', async () => {
+    it('33 - should paginate results', async () => {
         const response = await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -877,7 +1001,33 @@ describe('09 - Job Discovery (e2e)', () => {
         expect(body.totalPages).toBeGreaterThanOrEqual(2);
     });
 
-    it('29 - should return the second page', async () => {
+    it('32 - should sort jobs by title', async () => {
+        const response = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                sort: 'title',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const body = response.body as PaginatedJobsResponse;
+
+        expect(body.items.length).toBeGreaterThanOrEqual(2);
+
+        const titles = body.items.map((job) => job.title);
+
+        expect(titles).toEqual([
+            'Frontend Developer',
+            'Frontend Developer Test',
+            'Front End Engineer',
+            'React / Laravel developer (Full-stack)',
+            'Senior Backend Developer',
+            'Senior Technical Specialist - Java, Microservices, React.js',
+            'Web Developer - Join us at Hillebrand Gori a company of DHL Global Forwarding',
+        ]);
+    });
+
+    it('34 - should return the second page', async () => {
         const response = await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -894,7 +1044,7 @@ describe('09 - Job Discovery (e2e)', () => {
         expect(body.items).toHaveLength(1);
     });
 
-    it('30 - should reject an invalid work mode', async () => {
+    it('35 - should reject an invalid work mode', async () => {
         await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -904,7 +1054,7 @@ describe('09 - Job Discovery (e2e)', () => {
             .expect(400);
     });
 
-    it('31 - should reject an invalid employment type', async () => {
+    it('36 - should reject an invalid employment type', async () => {
         await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -914,7 +1064,7 @@ describe('09 - Job Discovery (e2e)', () => {
             .expect(400);
     });
 
-    it('32 - should reject an invalid skill UUID', async () => {
+    it('37 - should reject an invalid skill UUID', async () => {
         await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -924,7 +1074,7 @@ describe('09 - Job Discovery (e2e)', () => {
             .expect(400);
     });
 
-    it('33 - should reject an invalid sort value', async () => {
+    it('38 - should reject an invalid sort value', async () => {
         await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -934,7 +1084,7 @@ describe('09 - Job Discovery (e2e)', () => {
             .expect(400);
     });
 
-    it('34 - should reject an invalid salary range', async () => {
+    it('39 - should reject an invalid salary range', async () => {
         await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -945,7 +1095,7 @@ describe('09 - Job Discovery (e2e)', () => {
             .expect(400);
     });
 
-    it('35 - should reject a negative salary', async () => {
+    it('40 - should reject a negative salary', async () => {
         await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -955,7 +1105,7 @@ describe('09 - Job Discovery (e2e)', () => {
             .expect(400);
     });
 
-    it('36 - should reject invalid pagination parameters', async () => {
+    it('41 - should reject invalid pagination parameters', async () => {
         await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({
@@ -966,7 +1116,7 @@ describe('09 - Job Discovery (e2e)', () => {
             .expect(400);
     });
 
-    it('37 - should reject a non-integer page', async () => {
+    it('42 - should reject a non-integer page', async () => {
         await request(app.getHttpServer())
             .get('/api/v1/jobs')
             .query({

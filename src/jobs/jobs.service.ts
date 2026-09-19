@@ -234,7 +234,7 @@ export class JobsService {
         }
 
         // Filter by work mode
-        if (query.workModes && query.workModes.length > 0) {
+        if (query.workModes?.length) {
             andFilters.push({
                 workMode: {
                     in: query.workModes,
@@ -247,7 +247,16 @@ export class JobsService {
         }
 
         // Filter by employment type
-        if (query.employmentType) {
+        // Supports both:
+        // ?employmentType=FULL_TIME
+        // ?employmentTypes=FULL_TIME,PART_TIME
+        if (query.employmentTypes?.length) {
+            andFilters.push({
+                employmentType: {
+                    in: query.employmentTypes,
+                },
+            });
+        } else if (query.employmentType) {
             andFilters.push({
                 employmentType: query.employmentType,
             });
@@ -277,7 +286,7 @@ export class JobsService {
 
         // Filter by skills
         // Every supplied skill ID must be present on the job.
-        if (query.skillIds && query.skillIds.length > 0) {
+        if (query.skillIds?.length) {
             for (const skillId of query.skillIds) {
                 andFilters.push({
                     requirements: {

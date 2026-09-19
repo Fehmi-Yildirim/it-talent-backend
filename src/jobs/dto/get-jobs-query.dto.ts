@@ -1,3 +1,4 @@
+import { EmploymentType, WorkMode } from '../../../generated/prisma/enums';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -26,15 +27,15 @@ export class GetJobsQueryDto {
   location?: string;
 
   @ApiPropertyOptional({
-    enum: ['REMOTE', 'HYBRID', 'ONSITE', 'FLEXIBLE'],
+    enum: WorkMode,
   })
   @IsOptional()
-  @IsEnum(['REMOTE', 'HYBRID', 'ONSITE', 'FLEXIBLE'])
-  workMode?: 'REMOTE' | 'HYBRID' | 'ONSITE' | 'FLEXIBLE';
+  @IsEnum(WorkMode)
+  workMode?: WorkMode;
 
   @ApiPropertyOptional({
     description: 'Comma-separated work modes',
-    enum: ['REMOTE', 'HYBRID', 'ONSITE', 'FLEXIBLE'],
+    enum: WorkMode,
     isArray: true,
   })
   @IsOptional()
@@ -62,26 +63,48 @@ export class GetJobsQueryDto {
     },
   )
   @IsArray()
-  @IsEnum(['REMOTE', 'HYBRID', 'ONSITE', 'FLEXIBLE'], { each: true })
-  workModes?: Array<'REMOTE' | 'HYBRID' | 'ONSITE' | 'FLEXIBLE'>;
+  @IsEnum(WorkMode, { each: true })
+  workModes?: WorkMode[];
 
   @ApiPropertyOptional({
-    enum: ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE', 'INTERNSHIP'],
+    enum: EmploymentType,
   })
   @IsOptional()
-  @IsEnum([
-    'FULL_TIME',
-    'PART_TIME',
-    'CONTRACT',
-    'FREELANCE',
-    'INTERNSHIP',
-  ])
-  employmentType?:
-    | 'FULL_TIME'
-    | 'PART_TIME'
-    | 'CONTRACT'
-    | 'FREELANCE'
-    | 'INTERNSHIP';
+  @IsEnum(EmploymentType)
+  employmentType?: EmploymentType;
+
+  @ApiPropertyOptional({
+    description: 'Comma-separated employment types',
+    enum: EmploymentType,
+    isArray: true,
+  })
+  @IsOptional()
+  @Transform(
+    ({ value }: { value: unknown }): string[] | undefined => {
+      if (value === undefined || value === null || value === '') {
+        return undefined;
+      }
+
+      if (typeof value === 'string') {
+        return value
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      if (
+        Array.isArray(value) &&
+        value.every((item) => typeof item === 'string')
+      ) {
+        return value;
+      }
+
+      return undefined;
+    },
+  )
+  @IsArray()
+  @IsEnum(EmploymentType, { each: true })
+  employmentTypes?: EmploymentType[];
 
   @ApiPropertyOptional({ minimum: 0 })
   @IsOptional()

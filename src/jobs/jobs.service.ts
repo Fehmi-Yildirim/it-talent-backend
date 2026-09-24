@@ -4,7 +4,7 @@ import {
     Injectable,
     NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '../../generated/prisma/client';
+import { Prisma, WorkMode, EmploymentType } from '../../generated/prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { GetJobsQueryDto } from './dto/get-jobs-query.dto';
@@ -195,27 +195,71 @@ export class JobsService {
             AND: andFilters,
         };
 
-        // Search by title, description, or company name
+        // General search across job title, description, company,
+        // location, work mode, employment type, and skill names.
         if (query.q) {
+            const searchTerm = query.q.trim();
+            const normalizedSearchTerm = searchTerm.toLowerCase();
+
+            const workModeMatch = Object.values(WorkMode).find(
+                (value) => value.toLowerCase() === normalizedSearchTerm,
+            );
+
+            const employmentTypeMatch = Object.values(EmploymentType).find(
+                (value) => value.toLowerCase() === normalizedSearchTerm,
+            );
+
             andFilters.push({
                 OR: [
                     {
                         title: {
-                            contains: query.q,
+                            contains: searchTerm,
                             mode: 'insensitive',
                         },
                     },
                     {
                         description: {
-                            contains: query.q,
+                            contains: searchTerm,
                             mode: 'insensitive',
                         },
                     },
                     {
                         company: {
                             name: {
-                                contains: query.q,
+                                contains: searchTerm,
                                 mode: 'insensitive',
+                            },
+                        },
+                    },
+                    {
+                        location: {
+                            contains: searchTerm,
+                            mode: 'insensitive',
+                        },
+                    },
+                    ...(workModeMatch
+                        ? [
+                            {
+                                workMode: workModeMatch,
+                            },
+                        ]
+                        : []),
+                    ...(employmentTypeMatch
+                        ? [
+                            {
+                                employmentType: employmentTypeMatch,
+                            },
+                        ]
+                        : []),
+                    {
+                        requirements: {
+                            some: {
+                                skill: {
+                                    name: {
+                                        contains: searchTerm,
+                                        mode: 'insensitive',
+                                    },
+                                },
                             },
                         },
                     },

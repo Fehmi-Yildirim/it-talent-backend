@@ -1125,4 +1125,146 @@ describe('09 - Job Discovery (e2e)', () => {
             .set('Authorization', `Bearer ${candidateToken}`)
             .expect(400);
     });
+
+    it('43 - should filter jobs by location search', async () => {
+        const response = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                q: 'amsterdam',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const body = response.body as PaginatedJobsResponse;
+
+        expect(body.items.length).toBeGreaterThan(0);
+        expect(
+            body.items.every((job) =>
+                job.location.toLowerCase().includes('amsterdam'),
+            ),
+        ).toBe(true);
+
+        expect(body.items.some((job) => job.id === publishedJobId)).toBe(true);
+    });
+
+    it('44 - should filter jobs by work mode search', async () => {
+        const response = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                q: 'remote',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const body = response.body as PaginatedJobsResponse;
+
+        expect(body.items.length).toBeGreaterThan(0);
+        expect(
+            body.items.every((job) => job.workMode === 'REMOTE'),
+        ).toBe(true);
+
+        expect(body.items.some((job) => job.id === publishedJobId)).toBe(true);
+    });
+
+    it('45 - should filter jobs by employment type search', async () => {
+        const response = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                q: 'full_time',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const body = response.body as PaginatedJobsResponse;
+
+        expect(body.items.length).toBeGreaterThan(0);
+        expect(
+            body.items.every((job) => job.employmentType === 'FULL_TIME'),
+        ).toBe(true);
+
+        expect(body.items.some((job) => job.id === publishedJobId)).toBe(true);
+    });
+
+    it('46 - should filter jobs by skill name search', async () => {
+        const skill = await prisma.skill.findUnique({
+            where: {
+                id: requiredSkillId,
+            },
+        });
+
+        expect(skill).not.toBeNull();
+
+        const response = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                q: skill?.name,
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const body = response.body as PaginatedJobsResponse;
+
+        expect(body.items.length).toBeGreaterThan(0);
+        expect(body.items.some((job) => job.id === publishedJobId)).toBe(true);
+        expect(
+            body.items.some((job) => job.id === secondPublishedJobId),
+        ).toBe(false);
+    });
+
+    it('47 - should perform general search case-insensitively', async () => {
+        const lowerCaseResponse = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                q: 'amsterdam',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const upperCaseResponse = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                q: 'AMSTERDAM',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const lowerCaseBody =
+            lowerCaseResponse.body as PaginatedJobsResponse;
+        const upperCaseBody =
+            upperCaseResponse.body as PaginatedJobsResponse;
+
+        expect(upperCaseBody.total).toBe(lowerCaseBody.total);
+
+        expect(
+            upperCaseBody.items.map((job) => job.id),
+        ).toEqual(
+            lowerCaseBody.items.map((job) => job.id),
+        );
+    });
+
+    it('48 - should combine general search with dedicated filters', async () => {
+        const response = await request(app.getHttpServer())
+            .get('/api/v1/jobs')
+            .query({
+                q: 'typescript',
+                location: 'Amsterdam',
+            })
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200);
+
+        const body = response.body as PaginatedJobsResponse;
+
+        expect(body.items.length).toBeGreaterThan(0);
+
+        for (const job of body.items) {
+            expect(
+                job.location.toLowerCase(),
+            ).toContain('amsterdam');
+
+            expect(body.items.some((item) => item.id === publishedJobId)).toBe(
+                true,
+            );
+        }
+    });
+
 });

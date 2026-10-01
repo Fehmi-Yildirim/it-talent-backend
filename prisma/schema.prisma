@@ -260,8 +260,17 @@ model Application {
   candidateId String            @db.Uuid
   coverLetter String?
   status      ApplicationStatus @default(PENDING)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+
+  cvPath             String?
+  cvOriginalName     String?
+  cvMimeType         String?
+  cvSize             Int?
+  cvExpiresAt        DateTime?
+  cvRetentionConsent Boolean   @default(false)
+  cvConsentAt        DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   job       Job       @relation(fields: [jobId], references: [id])
   candidate Candidate @relation(fields: [candidateId], references: [id])

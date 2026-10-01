@@ -4,16 +4,28 @@ import {
     ForbiddenException,
     Injectable,
     NotFoundException,
+    InternalServerErrorException,
 } from '@nestjs/common'
+import { createReadStream } from 'node:fs'
+import { mkdir, unlink, writeFile } from 'node:fs/promises'
+import { basename, join, resolve, sep } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import type { Readable } from 'node:stream'
 import { ApplicationStatus, JobStatus } from '../../generated/prisma/enums'
 import { PrismaService } from '../database/prisma.service'
 import { CreateApplicationDto } from './dto/create-application.dto'
+import { UploadedCv } from './uploaded-cv.interface'
 
 @Injectable()
 export class ApplicationsService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(private readonly prisma: PrismaService) {}
 
-    async create(candidateUserId: string, jobId: string, dto: CreateApplicationDto) {
+    async create(
+        candidateUserId: string,
+        jobId: string,
+        dto: CreateApplicationDto,
+        file?: UploadedCv,
+    ) {
         const candidate = await this.prisma.candidate.findUnique({
             where: {
                 userId: candidateUserId,
@@ -40,7 +52,9 @@ export class ApplicationsService {
         }
 
         if (job.status !== JobStatus.PUBLISHED) {
-            throw new ConflictException('This job is not available for applications')
+            throw new ConflictException(
+                'This job is not available for applications',
+            )
         }
 
         if (job.expiresAt && job.expiresAt <= new Date()) {
@@ -57,19 +71,43 @@ export class ApplicationsService {
         })
 
         if (existingApplication) {
-            throw new ConflictException(
-                'You have already applied for this job',
-            )
+            throw new ConflictException('You have already applied for this job')
         }
 
-        return this.prisma.application.create({
-            data: {
-                candidateId: candidate.id,
-                jobId: job.id,
-                coverLetter: dto.coverLetter,
-                status: ApplicationStatus.PENDING,
-            },
-        })
+        let cvPath: string | undefined
+        if (file) {
+            const uploadDirectory = this.getUploadDirectory()
+            await mkdir(uploadDirectory, { recursive: true })
+            cvPath = join(
+                'cvs',
+                `${randomUUID()}${this.getFileExtension(file.originalname)}`,
+            )
+            await writeFile(join(this.getStorageRoot(), cvPath), file.buffer, {
+                flag: 'wx',
+            })
+        }
+
+        try {
+            const application = await this.prisma.application.create({
+                data: {
+                    candidateId: candidate.id,
+                    jobId: job.id,
+                    coverLetter: dto.coverLetter,
+                    status: ApplicationStatus.PENDING,
+                    cvPath,
+                    cvOriginalName: file?.originalname,
+                    cvMimeType: file?.mimetype,
+                    cvSize: file?.size,
+                },
+            })
+            return this.withCvUrl(application)
+        } catch (error) {
+            if (cvPath)
+                await unlink(join(this.getStorageRoot(), cvPath)).catch(
+                    () => undefined,
+                )
+            throw error
+        }
     }
 
     async findAll(candidateUserId: string) {
@@ -80,10 +118,12 @@ export class ApplicationsService {
         })
 
         if (!candidate) {
-            throw new ForbiddenException('Only candidates can view applications')
+            throw new ForbiddenException(
+                'Only candidates can view applications',
+            )
         }
 
-        return this.prisma.application.findMany({
+        const applications = await this.prisma.application.findMany({
             where: {
                 candidateId: candidate.id,
             },
@@ -109,6 +149,7 @@ export class ApplicationsService {
                 createdAt: 'desc',
             },
         })
+        return applications.map((application) => this.withCvUrl(application))
     }
 
     async findOne(candidateUserId: string, applicationId: string) {
@@ -119,7 +160,9 @@ export class ApplicationsService {
         })
 
         if (!candidate) {
-            throw new ForbiddenException('Only candidates can view applications')
+            throw new ForbiddenException(
+                'Only candidates can view applications',
+            )
         }
 
         const application = await this.prisma.application.findUnique({
@@ -157,7 +200,7 @@ export class ApplicationsService {
             )
         }
 
-        return application
+        return this.withCvUrl(application)
     }
 
     async withdraw(candidateUserId: string, applicationId: string) {
@@ -168,7 +211,9 @@ export class ApplicationsService {
         })
 
         if (!candidate) {
-            throw new ForbiddenException('Only candidates can withdraw applications')
+            throw new ForbiddenException(
+                'Only candidates can withdraw applications',
+            )
         }
 
         const application = await this.prisma.application.findUnique({
@@ -191,12 +236,10 @@ export class ApplicationsService {
             application.status !== ApplicationStatus.PENDING &&
             application.status !== ApplicationStatus.REVIEWING
         ) {
-            throw new ConflictException(
-                'This application cannot be withdrawn',
-            )
+            throw new ConflictException('This application cannot be withdrawn')
         }
 
-        return this.prisma.application.update({
+        const updatedApplication = await this.prisma.application.update({
             where: {
                 id: application.id,
             },
@@ -204,6 +247,7 @@ export class ApplicationsService {
                 status: ApplicationStatus.WITHDRAWN,
             },
         })
+        return this.withCvUrl(updatedApplication)
     }
 
     async findAllForRecruiter(recruiterUserId: string) {
@@ -218,14 +262,18 @@ export class ApplicationsService {
         })
 
         if (!recruiter) {
-            throw new ForbiddenException('Only recruiters can view applications')
+            throw new ForbiddenException(
+                'Only recruiters can view applications',
+            )
         }
 
         if (!recruiter.companyId) {
-            throw new ForbiddenException('Recruiter is not associated with a company')
+            throw new ForbiddenException(
+                'Recruiter is not associated with a company',
+            )
         }
 
-        return this.prisma.application.findMany({
+        const applications = await this.prisma.application.findMany({
             where: {
                 job: {
                     companyId: recruiter.companyId,
@@ -258,12 +306,10 @@ export class ApplicationsService {
                 createdAt: 'desc',
             },
         })
+        return applications.map((application) => this.withCvUrl(application))
     }
 
-    async findOneForRecruiter(
-        recruiterUserId: string,
-        applicationId: string,
-    ) {
+    async findOneForRecruiter(recruiterUserId: string, applicationId: string) {
         const recruiter = await this.prisma.recruiter.findUnique({
             where: {
                 userId: recruiterUserId,
@@ -275,11 +321,15 @@ export class ApplicationsService {
         })
 
         if (!recruiter) {
-            throw new ForbiddenException('Only recruiters can view applications')
+            throw new ForbiddenException(
+                'Only recruiters can view applications',
+            )
         }
 
         if (!recruiter.companyId) {
-            throw new ForbiddenException('Recruiter is not associated with a company')
+            throw new ForbiddenException(
+                'Recruiter is not associated with a company',
+            )
         }
 
         const application = await this.prisma.application.findUnique({
@@ -323,7 +373,81 @@ export class ApplicationsService {
             )
         }
 
-        return application
+        return this.withCvUrl(application)
+    }
+
+    async getCv(
+        userId: string,
+        applicationId: string,
+    ): Promise<{ stream: Readable; mimeType: string; originalName: string }> {
+        const application = await this.prisma.application.findUnique({
+            where: { id: applicationId },
+            include: { job: { select: { companyId: true } } },
+        })
+        if (!application) throw new NotFoundException('Application not found')
+        if (
+            !application.cvPath ||
+            !application.cvMimeType ||
+            !application.cvOriginalName
+        ) {
+            throw new NotFoundException('CV not found')
+        }
+
+        const [candidate, recruiter] = await Promise.all([
+            this.prisma.candidate.findUnique({
+                where: { userId },
+                select: { id: true },
+            }),
+            this.prisma.recruiter.findUnique({
+                where: { userId },
+                select: { companyId: true },
+            }),
+        ])
+        const canAccess =
+            candidate?.id === application.candidateId ||
+            recruiter?.companyId === application.job.companyId
+        if (!canAccess)
+            throw new ForbiddenException(
+                'You are not allowed to access this CV',
+            )
+
+        const storageRoot = this.getStorageRoot()
+        const filePath = resolve(storageRoot, application.cvPath)
+        if (!filePath.startsWith(`${storageRoot}${sep}`)) {
+            throw new InternalServerErrorException(
+                'Invalid CV storage reference',
+            )
+        }
+        return {
+            stream: createReadStream(filePath),
+            mimeType: application.cvMimeType,
+            originalName: basename(application.cvOriginalName),
+        }
+    }
+
+    private getStorageRoot(): string {
+        return resolve(
+            process.env.CV_UPLOAD_DIR ?? join(process.cwd(), 'uploads'),
+        )
+    }
+
+    private getUploadDirectory(): string {
+        return join(this.getStorageRoot(), 'cvs')
+    }
+
+    private getFileExtension(originalName: string): string {
+        const extension = originalName.split('.').pop()?.toLowerCase()
+        return extension ? `.${extension}` : ''
+    }
+
+    private withCvUrl<T extends { id: string; cvPath?: string | null }>(
+        application: T,
+    ) {
+        const { cvPath, ...data } = application
+        return {
+            ...data,
+            cvUrl: cvPath ? `/api/v1/applications/${application.id}/cv` : null,
+        }
     }
 
     async updateStatus(
@@ -341,11 +465,15 @@ export class ApplicationsService {
         })
 
         if (!recruiter) {
-            throw new ForbiddenException('Only recruiters can manage applications')
+            throw new ForbiddenException(
+                'Only recruiters can manage applications',
+            )
         }
 
         if (!recruiter.companyId) {
-            throw new ForbiddenException('Recruiter is not associated with a company')
+            throw new ForbiddenException(
+                'Recruiter is not associated with a company',
+            )
         }
 
         const application = await this.prisma.application.findUnique({
@@ -377,7 +505,7 @@ export class ApplicationsService {
             )
         }
 
-        return this.prisma.application.update({
+        const updatedApplication = await this.prisma.application.update({
             where: {
                 id: application.id,
             },
@@ -385,16 +513,14 @@ export class ApplicationsService {
                 status,
             },
         })
+        return this.withCvUrl(updatedApplication)
     }
 
     private isValidStatusTransition(
         currentStatus: ApplicationStatus,
         nextStatus: ApplicationStatus,
     ): boolean {
-        const transitions: Record<
-            ApplicationStatus,
-            ApplicationStatus[]
-        > = {
+        const transitions: Record<ApplicationStatus, ApplicationStatus[]> = {
             [ApplicationStatus.PENDING]: [
                 ApplicationStatus.REVIEWING,
                 ApplicationStatus.REJECTED,

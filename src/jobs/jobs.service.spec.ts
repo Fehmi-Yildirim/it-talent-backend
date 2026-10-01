@@ -1435,7 +1435,7 @@ describe('JobsService', () => {
           status: 'PUBLISHED',
           AND: expect.arrayContaining([
             expect.objectContaining({
-              OR: [
+              OR: expect.arrayContaining([
                 {
                   title: {
                     contains: 'TypeScript',
@@ -1456,7 +1456,31 @@ describe('JobsService', () => {
                     },
                   },
                 },
-              ],
+                {
+                  location: {
+                    contains: 'TypeScript',
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  requirements: {
+                    some: {
+                      skill: {
+                        name: {
+                          contains: 'TypeScript',
+                          mode: 'insensitive',
+                        },
+                      },
+                    },
+                  },
+                },
+              ]),
+            }),
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                { expiresAt: null },
+                { expiresAt: { gt: expect.any(Date) } },
+              ]),
             }),
             expect.objectContaining({
               location: {

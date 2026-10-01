@@ -2,6 +2,9 @@ import { INestApplication } from '@nestjs/common'
 import { PrismaService } from '../src/database/prisma.service'
 import request from 'supertest'
 import * as argon2 from 'argon2'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { createTestApp } from './helpers/create-test-app'
 
@@ -19,6 +22,11 @@ interface ApplicationResponse {
     candidateId: string
     status: string
     coverLetter?: string | null
+    cvPath?: string | null
+    cvOriginalName?: string | null
+    cvMimeType?: string | null
+    cvSize?: number | null
+    cvUrl?: string | null
     createdAt: string
     updatedAt: string
 }
@@ -94,8 +102,13 @@ describe('10 - Applications (e2e)', () => {
     let expiredJobId: string
 
     let applicationId: string
+    let previousCvUploadDir: string | undefined
+    let testCvUploadDir: string
 
     beforeAll(async () => {
+        previousCvUploadDir = process.env.CV_UPLOAD_DIR
+        testCvUploadDir = mkdtempSync(join(tmpdir(), 'it-talent-cvs-'))
+        process.env.CV_UPLOAD_DIR = testCvUploadDir
         app = await createTestApp()
         prisma = app.get(PrismaService)
 
@@ -103,8 +116,7 @@ describe('10 - Applications (e2e)', () => {
 
         // Candidate 1
         const candidatePassword = 'Candidate12345!'
-        const candidatePasswordHash =
-            await argon2.hash(candidatePassword)
+        const candidatePasswordHash = await argon2.hash(candidatePassword)
 
         const candidateUser = await prisma.user.create({
             data: {
@@ -133,13 +145,13 @@ describe('10 - Applications (e2e)', () => {
             })
             .expect(201)
 
-        candidateToken =
-            (candidateLogin.body as LoginResponse).accessToken
+        candidateToken = (candidateLogin.body as LoginResponse).accessToken
 
         // Candidate 2
         const secondCandidatePassword = 'Candidate12345!'
-        const secondCandidatePasswordHash =
-            await argon2.hash(secondCandidatePassword)
+        const secondCandidatePasswordHash = await argon2.hash(
+            secondCandidatePassword,
+        )
 
         const secondCandidateUser = await prisma.user.create({
             data: {
@@ -160,9 +172,7 @@ describe('10 - Applications (e2e)', () => {
 
         secondCandidateId = secondCandidate.id
 
-        const secondCandidateLogin = await request(
-            app.getHttpServer(),
-        )
+        const secondCandidateLogin = await request(app.getHttpServer())
             .post('/api/v1/auth/login')
             .send({
                 email: secondCandidateUser.email,
@@ -170,13 +180,12 @@ describe('10 - Applications (e2e)', () => {
             })
             .expect(201)
 
-        secondCandidateToken =
-            (secondCandidateLogin.body as LoginResponse).accessToken
+        secondCandidateToken = (secondCandidateLogin.body as LoginResponse)
+            .accessToken
 
         // Recruiter 1
         const recruiterPassword = 'Recruiter12345!'
-        const recruiterPasswordHash =
-            await argon2.hash(recruiterPassword)
+        const recruiterPasswordHash = await argon2.hash(recruiterPassword)
 
         const recruiterUser = await prisma.user.create({
             data: {
@@ -204,13 +213,13 @@ describe('10 - Applications (e2e)', () => {
             })
             .expect(201)
 
-        recruiterToken =
-            (recruiterLogin.body as LoginResponse).accessToken
+        recruiterToken = (recruiterLogin.body as LoginResponse).accessToken
 
         // Recruiter 2
         const secondRecruiterPassword = 'Recruiter12345!'
-        const secondRecruiterPasswordHash =
-            await argon2.hash(secondRecruiterPassword)
+        const secondRecruiterPasswordHash = await argon2.hash(
+            secondRecruiterPassword,
+        )
 
         const secondRecruiterUser = await prisma.user.create({
             data: {
@@ -230,9 +239,7 @@ describe('10 - Applications (e2e)', () => {
             },
         })
 
-        const secondRecruiterLogin = await request(
-            app.getHttpServer(),
-        )
+        const secondRecruiterLogin = await request(app.getHttpServer())
             .post('/api/v1/auth/login')
             .send({
                 email: secondRecruiterUser.email,
@@ -240,8 +247,8 @@ describe('10 - Applications (e2e)', () => {
             })
             .expect(201)
 
-        secondRecruiterToken =
-            (secondRecruiterLogin.body as LoginResponse).accessToken
+        secondRecruiterToken = (secondRecruiterLogin.body as LoginResponse)
+            .accessToken
 
         // Companies
         const company = await prisma.company.create({
@@ -299,9 +306,7 @@ describe('10 - Applications (e2e)', () => {
                 currency: 'EUR',
                 status: 'PUBLISHED',
                 publishedAt: new Date(),
-                expiresAt: new Date(
-                    Date.now() + 7 * 24 * 60 * 60 * 1000,
-                ),
+                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             },
         })
 
@@ -322,9 +327,7 @@ describe('10 - Applications (e2e)', () => {
                 currency: 'EUR',
                 status: 'PUBLISHED',
                 publishedAt: new Date(),
-                expiresAt: new Date(
-                    Date.now() + 7 * 24 * 60 * 60 * 1000,
-                ),
+                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             },
         })
 
@@ -363,12 +366,8 @@ describe('10 - Applications (e2e)', () => {
                 salaryMax: 6000,
                 currency: 'EUR',
                 status: 'PUBLISHED',
-                publishedAt: new Date(
-                    Date.now() - 14 * 24 * 60 * 60 * 1000,
-                ),
-                expiresAt: new Date(
-                    Date.now() - 24 * 60 * 60 * 1000,
-                ),
+                publishedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+                expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
             },
         })
 
@@ -378,10 +377,7 @@ describe('10 - Applications (e2e)', () => {
     afterAll(async () => {
         await prisma.application.deleteMany({
             where: {
-                OR: [
-                    { candidateId },
-                    { candidateId: secondCandidateId },
-                ],
+                OR: [{ candidateId }, { candidateId: secondCandidateId }],
             },
         })
 
@@ -423,6 +419,9 @@ describe('10 - Applications (e2e)', () => {
         })
 
         await app.close()
+        rmSync(testCvUploadDir, { recursive: true, force: true })
+        if (previousCvUploadDir === undefined) delete process.env.CV_UPLOAD_DIR
+        else process.env.CV_UPLOAD_DIR = previousCvUploadDir
     })
 
     it('01 - should reject unauthenticated application requests', async () => {
@@ -448,6 +447,7 @@ describe('10 - Applications (e2e)', () => {
             candidateId,
             status: 'PENDING',
             coverLetter: 'I would love to join your team.',
+            cvUrl: null,
         })
 
         expect(response.body).toHaveProperty('id')
@@ -508,8 +508,8 @@ describe('10 - Applications (e2e)', () => {
             .get('/api/v1/applications')
             .set('Authorization', `Bearer ${candidateToken}`)
             .expect(200)) as unknown as {
-                body: CandidateApplicationResponse[]
-            }
+            body: CandidateApplicationResponse[]
+        }
 
         expect(Array.isArray(response.body)).toBe(true)
 
@@ -526,8 +526,8 @@ describe('10 - Applications (e2e)', () => {
             .get(`/api/v1/applications/${applicationId}`)
             .set('Authorization', `Bearer ${candidateToken}`)
             .expect(200)) as unknown as {
-                body: ApplicationDetailResponse
-            }
+            body: ApplicationDetailResponse
+        }
 
         expect(response.body).toMatchObject({
             id: applicationId,
@@ -540,13 +540,12 @@ describe('10 - Applications (e2e)', () => {
     })
 
     it('09 - should prevent a candidate from viewing another candidate application', async () => {
-        const secondCandidateApplication =
-            await prisma.application.findFirst({
-                where: {
-                    candidateId: secondCandidateId,
-                    jobId: publishedJobId,
-                },
-            })
+        const secondCandidateApplication = await prisma.application.findFirst({
+            where: {
+                candidateId: secondCandidateId,
+                jobId: publishedJobId,
+            },
+        })
 
         expect(secondCandidateApplication).not.toBeNull()
 
@@ -565,8 +564,8 @@ describe('10 - Applications (e2e)', () => {
             .get('/api/v1/recruiter/applications')
             .set('Authorization', `Bearer ${recruiterToken}`)
             .expect(200)) as unknown as {
-                body: RecruiterApplicationResponse[]
-            }
+            body: RecruiterApplicationResponse[]
+        }
 
         expect(Array.isArray(response.body)).toBe(true)
 
@@ -591,8 +590,8 @@ describe('10 - Applications (e2e)', () => {
             .get(`/api/v1/recruiter/applications/${applicationId}`)
             .set('Authorization', `Bearer ${recruiterToken}`)
             .expect(200)) as unknown as {
-                body: RecruiterApplicationResponse
-            }
+            body: RecruiterApplicationResponse
+        }
 
         expect(response.body).toMatchObject({
             id: applicationId,
@@ -687,19 +686,61 @@ describe('10 - Applications (e2e)', () => {
         const response = (await request(app.getHttpServer())
             .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
             .set('Authorization', `Bearer ${candidateToken}`)
-            .send({
-                coverLetter: 'I would like to apply and later withdraw.',
+            .field('coverLetter', 'I would like to apply and later withdraw.')
+            .attach('cv', Buffer.from('%PDF-1.4 test CV'), {
+                filename: 'candidate-cv.pdf',
+                contentType: 'application/pdf',
             })
             .expect(201)) as unknown as { body: ApplicationResponse }
 
         const withdrawApplicationId = response.body.id
+        expect(response.body).toMatchObject({
+            cvOriginalName: 'candidate-cv.pdf',
+            cvMimeType: 'application/pdf',
+            cvUrl: `/api/v1/applications/${withdrawApplicationId}/cv`,
+        })
+        expect(response.body.cvSize).toBeGreaterThan(0)
 
-        const withdrawResponse = (await request(
-            app.getHttpServer(),
+        const candidateApplication = await request(app.getHttpServer())
+            .get(`/api/v1/applications/${withdrawApplicationId}`)
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200) as unknown as { body: { cvUrl: string | null } }
+        expect(candidateApplication.body.cvUrl).toBe(response.body.cvUrl)
+
+        const recruiterApplication = await request(app.getHttpServer())
+            .get(`/api/v1/recruiter/applications/${withdrawApplicationId}`)
+            .set('Authorization', `Bearer ${secondRecruiterToken}`)
+            .expect(200) as unknown as {
+                body: { cvOriginalName: string | null }
+            }
+        expect(recruiterApplication.body.cvOriginalName).toBe(
+            'candidate-cv.pdf',
         )
-            .patch(
-                `/api/v1/applications/${withdrawApplicationId}/withdraw`,
-            )
+
+        const cvUrl = response.body.cvUrl
+        if (typeof cvUrl !== 'string') {
+            throw new Error('CV download URL was not returned')
+        }
+
+        const candidateCv = await request(app.getHttpServer())
+            .get(cvUrl)
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200)
+        expect(candidateCv.headers['content-type']).toContain('application/pdf')
+        expect(candidateCv.body).toEqual(Buffer.from('%PDF-1.4 test CV'))
+
+        await request(app.getHttpServer())
+            .get(cvUrl)
+            .set('Authorization', `Bearer ${secondRecruiterToken}`)
+            .expect(200)
+
+        await request(app.getHttpServer())
+            .get(cvUrl)
+            .set('Authorization', `Bearer ${recruiterToken}`)
+            .expect(403)
+
+        const withdrawResponse = (await request(app.getHttpServer())
+            .patch(`/api/v1/applications/${withdrawApplicationId}/withdraw`)
             .set('Authorization', `Bearer ${candidateToken}`)
             .expect(200)) as unknown as { body: ApplicationResponse }
 
@@ -707,5 +748,16 @@ describe('10 - Applications (e2e)', () => {
             id: withdrawApplicationId,
             status: 'WITHDRAWN',
         })
+    })
+
+    it('should reject unsupported CV uploads', async () => {
+        await request(app.getHttpServer())
+            .post(`/api/v1/jobs/${publishedJobId}/applications`)
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .attach('cv', Buffer.from('not a CV'), {
+                filename: 'notes.txt',
+                contentType: 'text/plain',
+            })
+            .expect(400)
     })
 })

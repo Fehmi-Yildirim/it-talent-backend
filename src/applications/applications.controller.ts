@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     Body,
     Controller,
     Get,
@@ -7,28 +8,83 @@ import {
     Patch,
     Post,
     Req,
+    UploadedFile,
     UseGuards,
+    UseInterceptors,
+    StreamableFile,
+    Res,
 } from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
+import type { Response } from 'express'
 import { ApplicationsService } from './applications.service'
 import { CreateApplicationDto } from './dto/create-application.dto'
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto'
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { UploadedCv } from './uploaded-cv.interface'
 
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class ApplicationsController {
-    constructor(
-        private readonly applicationsService: ApplicationsService,
-    ) { }
+    constructor(private readonly applicationsService: ApplicationsService) {}
 
     @Post('jobs/:jobId/applications')
+    @UseInterceptors(
+        FileInterceptor('cv', {
+            limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+        }),
+    )
     create(
         @Req() req: AuthenticatedRequest,
         @Param('jobId', new ParseUUIDPipe()) jobId: string,
         @Body() dto: CreateApplicationDto,
+        @UploadedFile() file?: UploadedCv,
     ) {
-        return this.applicationsService.create(req.user.id, jobId, dto)
+        if (file) {
+            const extension = file.originalname.split('.').pop()?.toLowerCase()
+            const allowedTypes: Record<string, string[]> = {
+                pdf: ['application/pdf'],
+                doc: ['application/msword'],
+                docx: [
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                ],
+            }
+            const hasValidSignature =
+                (extension === 'pdf' &&
+                    file.buffer.subarray(0, 5).toString() === '%PDF-') ||
+                (extension === 'doc' &&
+                    file.buffer.subarray(0, 8).toString('hex') ===
+                        'd0cf11e0a1b11ae1') ||
+                (extension === 'docx' &&
+                    file.buffer.subarray(0, 2).toString() === 'PK')
+            if (
+                !extension ||
+                !allowedTypes[extension]?.includes(file.mimetype) ||
+                !hasValidSignature
+            ) {
+                throw new BadRequestException(
+                    'CV must be a PDF, DOC, or DOCX file',
+                )
+            }
+        }
+        return this.applicationsService.create(req.user.id, jobId, dto, file)
+    }
+
+    @Get('applications/:applicationId/cv')
+    async downloadCv(
+        @Req() req: AuthenticatedRequest,
+        @Param('applicationId', new ParseUUIDPipe()) applicationId: string,
+        @Res({ passthrough: true }) response: Response,
+    ) {
+        const cv = await this.applicationsService.getCv(
+            req.user.id,
+            applicationId,
+        )
+        response.set({
+            'Content-Type': cv.mimeType,
+            'Content-Disposition': `attachment; filename="${encodeURIComponent(cv.originalName)}"`,
+        })
+        return new StreamableFile(cv.stream)
     }
 
     @Get('applications')
@@ -41,10 +97,7 @@ export class ApplicationsController {
         @Req() req: AuthenticatedRequest,
         @Param('applicationId', new ParseUUIDPipe()) applicationId: string,
     ) {
-        return this.applicationsService.findOne(
-            req.user.id,
-            applicationId,
-        )
+        return this.applicationsService.findOne(req.user.id, applicationId)
     }
 
     @Patch('applications/:applicationId/withdraw')
@@ -52,10 +105,7 @@ export class ApplicationsController {
         @Req() req: AuthenticatedRequest,
         @Param('applicationId', new ParseUUIDPipe()) applicationId: string,
     ) {
-        return this.applicationsService.withdraw(
-            req.user.id,
-            applicationId,
-        )
+        return this.applicationsService.withdraw(req.user.id, applicationId)
     }
 
     @Get('recruiter/applications')

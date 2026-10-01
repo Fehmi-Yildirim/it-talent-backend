@@ -1,0 +1,8 @@
+ALTER TABLE "applications"
+ADD COLUMN "cvPath" TEXT,
+ADD COLUMN "cvOriginalName" TEXT,
+ADD COLUMN "cvMimeType" TEXT,
+ADD COLUMN "cvSize" INTEGER,
+ADD COLUMN "cvExpiresAt" TIMESTAMP(3),
+ADD COLUMN "cvRetentionConsent" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN "cvConsentAt" TIMESTAMP(3);

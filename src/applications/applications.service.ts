@@ -482,7 +482,7 @@ export class ApplicationsService {
             )
         }
 
-        // Do not allow access after the 4-week retention period.
+        // Do not allow access after the configured CV retention period.
         if (
             application.cvExpiresAt &&
             application.cvExpiresAt <= new Date()

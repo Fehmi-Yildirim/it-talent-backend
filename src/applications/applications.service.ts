@@ -13,12 +13,16 @@ import { randomUUID } from 'node:crypto'
 import type { Readable } from 'node:stream'
 import { ApplicationStatus, JobStatus } from '../../generated/prisma/enums'
 import { PrismaService } from '../database/prisma.service'
+import { SettingsService } from '../settings/settings.service'
 import { CreateApplicationDto } from './dto/create-application.dto'
 import { UploadedCv } from './uploaded-cv.interface'
 
 @Injectable()
 export class ApplicationsService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly settingsService: SettingsService,
+    ) { }
 
     async create(
         candidateUserId: string,
@@ -75,17 +79,39 @@ export class ApplicationsService {
         }
 
         let cvPath: string | undefined
+
         if (file) {
             const uploadDirectory = this.getUploadDirectory()
+
             await mkdir(uploadDirectory, { recursive: true })
+
             cvPath = join(
                 'cvs',
                 `${randomUUID()}${this.getFileExtension(file.originalname)}`,
             )
-            await writeFile(join(this.getStorageRoot(), cvPath), file.buffer, {
-                flag: 'wx',
-            })
+
+            await writeFile(
+                join(this.getStorageRoot(), cvPath),
+                file.buffer,
+                {
+                    flag: 'wx',
+                },
+            )
         }
+
+        const cvRetentionDays = file
+            ? await this.settingsService.getCvRetentionDays()
+            : null
+
+        const cvExpiresAt = file
+            ? new Date(
+                Date.now() +
+                cvRetentionDays! * 24 * 60 * 60 * 1000,
+            )
+            : null
+
+        const cvConsentAt =
+            file && dto.cvRetentionConsent === true ? new Date() : null
 
         try {
             const application = await this.prisma.application.create({
@@ -94,18 +120,26 @@ export class ApplicationsService {
                     jobId: job.id,
                     coverLetter: dto.coverLetter,
                     status: ApplicationStatus.PENDING,
+
                     cvPath,
                     cvOriginalName: file?.originalname,
                     cvMimeType: file?.mimetype,
                     cvSize: file?.size,
+
+                    cvExpiresAt,
+                    cvRetentionConsent: dto.cvRetentionConsent ?? false,
+                    cvConsentAt,
                 },
             })
+
             return this.withCvUrl(application)
         } catch (error) {
-            if (cvPath)
-                await unlink(join(this.getStorageRoot(), cvPath)).catch(
-                    () => undefined,
-                )
+            if (cvPath) {
+                await unlink(
+                    join(this.getStorageRoot(), cvPath),
+                ).catch(() => undefined)
+            }
+
             throw error
         }
     }
@@ -149,7 +183,10 @@ export class ApplicationsService {
                 createdAt: 'desc',
             },
         })
-        return applications.map((application) => this.withCvUrl(application))
+
+        return applications.map((application) =>
+            this.withCvUrl(application),
+        )
     }
 
     async findOne(candidateUserId: string, applicationId: string) {
@@ -247,6 +284,7 @@ export class ApplicationsService {
                 status: ApplicationStatus.WITHDRAWN,
             },
         })
+
         return this.withCvUrl(updatedApplication)
     }
 
@@ -306,10 +344,16 @@ export class ApplicationsService {
                 createdAt: 'desc',
             },
         })
-        return applications.map((application) => this.withCvUrl(application))
+
+        return applications.map((application) =>
+            this.withCvUrl(application),
+        )
     }
 
-    async findOneForRecruiter(recruiterUserId: string, applicationId: string) {
+    async findOneForRecruiter(
+        recruiterUserId: string,
+        applicationId: string,
+    ) {
         const recruiter = await this.prisma.recruiter.findUnique({
             where: {
                 userId: recruiterUserId,
@@ -379,12 +423,28 @@ export class ApplicationsService {
     async getCv(
         userId: string,
         applicationId: string,
-    ): Promise<{ stream: Readable; mimeType: string; originalName: string }> {
+    ): Promise<{
+        stream: Readable
+        mimeType: string
+        originalName: string
+    }> {
         const application = await this.prisma.application.findUnique({
-            where: { id: applicationId },
-            include: { job: { select: { companyId: true } } },
+            where: {
+                id: applicationId,
+            },
+            include: {
+                job: {
+                    select: {
+                        companyId: true,
+                    },
+                },
+            },
         })
-        if (!application) throw new NotFoundException('Application not found')
+
+        if (!application) {
+            throw new NotFoundException('Application not found')
+        }
+
         if (
             !application.cvPath ||
             !application.cvMimeType ||
@@ -395,29 +455,50 @@ export class ApplicationsService {
 
         const [candidate, recruiter] = await Promise.all([
             this.prisma.candidate.findUnique({
-                where: { userId },
-                select: { id: true },
+                where: {
+                    userId,
+                },
+                select: {
+                    id: true,
+                },
             }),
             this.prisma.recruiter.findUnique({
-                where: { userId },
-                select: { companyId: true },
+                where: {
+                    userId,
+                },
+                select: {
+                    companyId: true,
+                },
             }),
         ])
+
         const canAccess =
             candidate?.id === application.candidateId ||
             recruiter?.companyId === application.job.companyId
-        if (!canAccess)
+
+        if (!canAccess) {
             throw new ForbiddenException(
                 'You are not allowed to access this CV',
             )
+        }
+
+        // Do not allow access after the configured CV retention period.
+        if (
+            application.cvExpiresAt &&
+            application.cvExpiresAt <= new Date()
+        ) {
+            throw new NotFoundException('CV not found')
+        }
 
         const storageRoot = this.getStorageRoot()
         const filePath = resolve(storageRoot, application.cvPath)
+
         if (!filePath.startsWith(`${storageRoot}${sep}`)) {
             throw new InternalServerErrorException(
                 'Invalid CV storage reference',
             )
         }
+
         return {
             stream: createReadStream(filePath),
             mimeType: application.cvMimeType,
@@ -437,16 +518,29 @@ export class ApplicationsService {
 
     private getFileExtension(originalName: string): string {
         const extension = originalName.split('.').pop()?.toLowerCase()
+
         return extension ? `.${extension}` : ''
     }
 
-    private withCvUrl<T extends { id: string; cvPath?: string | null }>(
-        application: T,
-    ) {
+    private withCvUrl<
+        T extends {
+            id: string
+            cvPath?: string | null
+            cvExpiresAt?: Date | null
+        },
+    >(application: T) {
         const { cvPath, ...data } = application
+
+        const cvIsAvailable =
+            !!cvPath &&
+            (!application.cvExpiresAt ||
+                application.cvExpiresAt > new Date())
+
         return {
             ...data,
-            cvUrl: cvPath ? `/api/v1/applications/${application.id}/cv` : null,
+            cvUrl: cvIsAvailable
+                ? `/api/v1/applications/${application.id}/cv`
+                : null,
         }
     }
 
@@ -513,6 +607,7 @@ export class ApplicationsService {
                 status,
             },
         })
+
         return this.withCvUrl(updatedApplication)
     }
 
@@ -520,7 +615,10 @@ export class ApplicationsService {
         currentStatus: ApplicationStatus,
         nextStatus: ApplicationStatus,
     ): boolean {
-        const transitions: Record<ApplicationStatus, ApplicationStatus[]> = {
+        const transitions: Record<
+            ApplicationStatus,
+            ApplicationStatus[]
+        > = {
             [ApplicationStatus.PENDING]: [
                 ApplicationStatus.REVIEWING,
                 ApplicationStatus.REJECTED,

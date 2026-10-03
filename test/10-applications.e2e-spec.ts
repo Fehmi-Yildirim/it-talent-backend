@@ -26,6 +26,9 @@ interface ApplicationResponse {
     cvOriginalName?: string | null
     cvMimeType?: string | null
     cvSize?: number | null
+    cvExpiresAt?: string | null
+    cvRetentionConsent?: boolean
+    cvConsentAt?: string | null
     cvUrl?: string | null
     createdAt: string
     updatedAt: string
@@ -89,6 +92,8 @@ describe('10 - Applications (e2e)', () => {
     let secondCandidateToken: string
     let recruiterToken: string
     let secondRecruiterToken: string
+    let adminToken: string
+    let adminUserId: string
 
     let candidateId: string
     let secondCandidateId: string
@@ -249,6 +254,33 @@ describe('10 - Applications (e2e)', () => {
 
         secondRecruiterToken = (secondRecruiterLogin.body as LoginResponse)
             .accessToken
+
+
+        // Admin
+        const adminPassword = 'Admin12345!'
+        const adminPasswordHash = await argon2.hash(adminPassword)
+
+        const adminUser = await prisma.user.create({
+            data: {
+                email: `e2e-application-admin-${timestamp}@example.com`,
+                passwordHash: adminPasswordHash,
+                firstName: 'Test',
+                lastName: 'Admin',
+                role: 'ADMIN',
+                status: 'ACTIVE',
+            },
+        })
+
+        const adminLogin = await request(app.getHttpServer())
+            .post('/api/v1/auth/login')
+            .send({
+                email: adminUser.email,
+                password: adminPassword,
+            })
+            .expect(201)
+
+        adminToken = (adminLogin.body as LoginResponse).accessToken
+        adminUserId = adminUser.id
 
         // Companies
         const company = await prisma.company.create({
@@ -418,6 +450,10 @@ describe('10 - Applications (e2e)', () => {
             },
         })
 
+        await prisma.user.deleteMany({
+            where: { id: adminUserId },
+        })
+
         await app.close()
         rmSync(testCvUploadDir, { recursive: true, force: true })
         if (previousCvUploadDir === undefined) delete process.env.CV_UPLOAD_DIR
@@ -508,8 +544,8 @@ describe('10 - Applications (e2e)', () => {
             .get('/api/v1/applications')
             .set('Authorization', `Bearer ${candidateToken}`)
             .expect(200)) as unknown as {
-            body: CandidateApplicationResponse[]
-        }
+                body: CandidateApplicationResponse[]
+            }
 
         expect(Array.isArray(response.body)).toBe(true)
 
@@ -526,8 +562,8 @@ describe('10 - Applications (e2e)', () => {
             .get(`/api/v1/applications/${applicationId}`)
             .set('Authorization', `Bearer ${candidateToken}`)
             .expect(200)) as unknown as {
-            body: ApplicationDetailResponse
-        }
+                body: ApplicationDetailResponse
+            }
 
         expect(response.body).toMatchObject({
             id: applicationId,
@@ -564,8 +600,8 @@ describe('10 - Applications (e2e)', () => {
             .get('/api/v1/recruiter/applications')
             .set('Authorization', `Bearer ${recruiterToken}`)
             .expect(200)) as unknown as {
-            body: RecruiterApplicationResponse[]
-        }
+                body: RecruiterApplicationResponse[]
+            }
 
         expect(Array.isArray(response.body)).toBe(true)
 
@@ -590,8 +626,8 @@ describe('10 - Applications (e2e)', () => {
             .get(`/api/v1/recruiter/applications/${applicationId}`)
             .set('Authorization', `Bearer ${recruiterToken}`)
             .expect(200)) as unknown as {
-            body: RecruiterApplicationResponse
-        }
+                body: RecruiterApplicationResponse
+            }
 
         expect(response.body).toMatchObject({
             id: applicationId,
@@ -687,6 +723,7 @@ describe('10 - Applications (e2e)', () => {
             .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
             .set('Authorization', `Bearer ${candidateToken}`)
             .field('coverLetter', 'I would like to apply and later withdraw.')
+            .field('cvRetentionConsent', 'true')
             .attach('cv', Buffer.from('%PDF-1.4 test CV'), {
                 filename: 'candidate-cv.pdf',
                 contentType: 'application/pdf',
@@ -700,6 +737,15 @@ describe('10 - Applications (e2e)', () => {
             cvUrl: `/api/v1/applications/${withdrawApplicationId}/cv`,
         })
         expect(response.body.cvSize).toBeGreaterThan(0)
+        expect(response.body.cvRetentionConsent).toBe(true)
+        expect(response.body.cvConsentAt).toBeTruthy()
+        expect(response.body.cvExpiresAt).toBeTruthy()
+
+        const cvExpiresAt = new Date(String(response.body.cvExpiresAt))
+        const now = Date.now()
+        const fourWeeks = 28 * 24 * 60 * 60 * 1000
+        expect(cvExpiresAt.getTime()).toBeGreaterThan(now + fourWeeks - 60_000)
+        expect(cvExpiresAt.getTime()).toBeLessThan(now + fourWeeks + 60_000)
 
         const candidateApplication = await request(app.getHttpServer())
             .get(`/api/v1/applications/${withdrawApplicationId}`)
@@ -750,6 +796,34 @@ describe('10 - Applications (e2e)', () => {
         })
     })
 
+    it('21 - should reject access to an expired CV', async () => {
+        const expiredApplication = await prisma.application.create({
+            data: {
+                candidateId: secondCandidateId,
+                jobId: secondPublishedJobId,
+                status: 'PENDING',
+                cvPath: 'cvs/expired-test-cv.pdf',
+                cvOriginalName: 'expired-test-cv.pdf',
+                cvMimeType: 'application/pdf',
+                cvSize: Buffer.from('%PDF-1.4 expired test CV').length,
+                cvExpiresAt: new Date(Date.now() - 60 * 1000),
+                cvRetentionConsent: true,
+                cvConsentAt: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000),
+            },
+        })
+
+        try {
+            await request(app.getHttpServer())
+                .get(`/api/v1/applications/${expiredApplication.id}/cv`)
+                .set('Authorization', `Bearer ${secondCandidateToken}`)
+                .expect(404)
+        } finally {
+            await prisma.application.delete({
+                where: { id: expiredApplication.id },
+            })
+        }
+    })
+
     it('should reject unsupported CV uploads', async () => {
         await request(app.getHttpServer())
             .post(`/api/v1/jobs/${publishedJobId}/applications`)
@@ -760,4 +834,109 @@ describe('10 - Applications (e2e)', () => {
             })
             .expect(400)
     })
+
+    it('should persist false when CV retention consent is explicitly false', async () => {
+        await prisma.application.deleteMany({
+            where: { candidateId: secondCandidateId, jobId: secondPublishedJobId },
+        })
+        const response = (await request(app.getHttpServer())
+            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .set('Authorization', `Bearer ${secondCandidateToken}`)
+            .field('cvRetentionConsent', 'false')
+            .attach('cv', Buffer.from('%PDF-1.4 false consent CV'), {
+                filename: 'false-consent.pdf',
+                contentType: 'application/pdf',
+            })
+            .expect(201)) as unknown as {
+                body: ApplicationResponse
+            }
+
+        expect(response.body.cvRetentionConsent).toBe(false)
+        expect(response.body.cvConsentAt).toBeNull()
+        expect(response.body.cvExpiresAt).toBeTruthy()
+    })
+
+    it('should persist false when CV retention consent is missing', async () => {
+        await prisma.application.deleteMany({
+            where: { candidateId: secondCandidateId, jobId: secondPublishedJobId },
+        })
+        const response = (await request(app.getHttpServer())
+            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .set('Authorization', `Bearer ${secondCandidateToken}`)
+            .attach('cv', Buffer.from('%PDF-1.4 missing consent CV'), {
+                filename: 'missing-consent.pdf',
+                contentType: 'application/pdf',
+            })
+            .expect(201)) as unknown as {
+                body: ApplicationResponse
+            }
+
+        expect(response.body.cvRetentionConsent).toBe(false)
+        expect(response.body.cvConsentAt).toBeNull()
+        expect(response.body.cvExpiresAt).toBeTruthy()
+    })
+
+
+    it('should allow an admin to configure CV retention days', async () => {
+        const response = await request(app.getHttpServer())
+            .patch('/api/v1/settings/cv-retention')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                days: 90,
+            })
+            .expect(200)
+
+        expect(response.body.days).toBe(90)
+
+        const publicResponse = await request(app.getHttpServer())
+            .get('/api/v1/settings/cv-retention')
+            .expect(200)
+
+        expect(publicResponse.body.days).toBe(90)
+    })
+
+    it('should calculate CV expiration using the configured retention period', async () => {
+        await prisma.application.deleteMany({
+            where: { candidateId: secondCandidateId, jobId: secondPublishedJobId },
+        })
+        await request(app.getHttpServer())
+            .patch('/api/v1/settings/cv-retention')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                days: 90,
+            })
+            .expect(200)
+
+        const response = (await request(app.getHttpServer())
+            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .set('Authorization', `Bearer ${secondCandidateToken}`)
+            .field('cvRetentionConsent', 'true')
+            .attach('cv', Buffer.from('%PDF-1.4 configurable retention CV'), {
+                filename: 'configurable-retention.pdf',
+                contentType: 'application/pdf',
+            })
+            .expect(201)) as unknown as {
+                body: ApplicationResponse
+            }
+
+        expect(response.body.cvRetentionConsent).toBe(true)
+        expect(response.body.cvConsentAt).toBeTruthy()
+        expect(response.body.cvExpiresAt).toBeTruthy()
+
+        const expiresAt = new Date(String(response.body.cvExpiresAt))
+        const expected = Date.now() + 90 * 24 * 60 * 60 * 1000
+
+        expect(expiresAt.getTime()).toBeGreaterThan(expected - 60_000)
+        expect(expiresAt.getTime()).toBeLessThan(expected + 60_000)
+
+        // Restore the default for the rest of the test suite.
+        await request(app.getHttpServer())
+            .patch('/api/v1/settings/cv-retention')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                days: 28,
+            })
+            .expect(200)
+    })
+
 })

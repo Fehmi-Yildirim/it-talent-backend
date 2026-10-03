@@ -15,6 +15,7 @@ import { JobsModule } from './jobs/jobs.module'
 import { CandidatesModule } from './candidates/candidates.module'
 import { ApplicationsModule } from './applications/applications.module'
 import { DashboardModule } from './dashboard/dashboard.module'
+import { SettingsModule } from './settings/settings.module'
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { DashboardModule } from './dashboard/dashboard.module'
     CandidatesModule,
     ApplicationsModule,
     DashboardModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

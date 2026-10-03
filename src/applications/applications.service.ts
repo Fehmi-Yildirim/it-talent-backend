@@ -13,12 +13,16 @@ import { randomUUID } from 'node:crypto'
 import type { Readable } from 'node:stream'
 import { ApplicationStatus, JobStatus } from '../../generated/prisma/enums'
 import { PrismaService } from '../database/prisma.service'
+import { SettingsService } from '../settings/settings.service'
 import { CreateApplicationDto } from './dto/create-application.dto'
 import { UploadedCv } from './uploaded-cv.interface'
 
 @Injectable()
 export class ApplicationsService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly settingsService: SettingsService,
+    ) { }
 
     async create(
         candidateUserId: string,
@@ -95,9 +99,15 @@ export class ApplicationsService {
             )
         }
 
-        // CV retention period: 4 weeks = 28 days
+        const cvRetentionDays = file
+            ? await this.settingsService.getCvRetentionDays()
+            : null
+
         const cvExpiresAt = file
-            ? new Date(Date.now() + 28 * 24 * 60 * 60 * 1000)
+            ? new Date(
+                Date.now() +
+                cvRetentionDays! * 24 * 60 * 60 * 1000,
+            )
             : null
 
         const cvConsentAt =

@@ -92,6 +92,8 @@ describe('10 - Applications (e2e)', () => {
     let secondCandidateToken: string
     let recruiterToken: string
     let secondRecruiterToken: string
+    let adminToken: string
+    let adminUserId: string
 
     let candidateId: string
     let secondCandidateId: string
@@ -252,6 +254,33 @@ describe('10 - Applications (e2e)', () => {
 
         secondRecruiterToken = (secondRecruiterLogin.body as LoginResponse)
             .accessToken
+
+
+        // Admin
+        const adminPassword = 'Admin12345!'
+        const adminPasswordHash = await argon2.hash(adminPassword)
+
+        const adminUser = await prisma.user.create({
+            data: {
+                email: `e2e-application-admin-${timestamp}@example.com`,
+                passwordHash: adminPasswordHash,
+                firstName: 'Test',
+                lastName: 'Admin',
+                role: 'ADMIN',
+                status: 'ACTIVE',
+            },
+        })
+
+        const adminLogin = await request(app.getHttpServer())
+            .post('/api/v1/auth/login')
+            .send({
+                email: adminUser.email,
+                password: adminPassword,
+            })
+            .expect(201)
+
+        adminToken = (adminLogin.body as LoginResponse).accessToken
+        adminUserId = adminUser.id
 
         // Companies
         const company = await prisma.company.create({
@@ -419,6 +448,10 @@ describe('10 - Applications (e2e)', () => {
                     in: [candidateId, secondCandidateId].filter(Boolean),
                 },
             },
+        })
+
+        await prisma.user.deleteMany({
+            where: { id: adminUserId },
         })
 
         await app.close()
@@ -801,4 +834,109 @@ describe('10 - Applications (e2e)', () => {
             })
             .expect(400)
     })
+
+    it('should persist false when CV retention consent is explicitly false', async () => {
+        await prisma.application.deleteMany({
+            where: { candidateId: secondCandidateId, jobId: secondPublishedJobId },
+        })
+        const response = (await request(app.getHttpServer())
+            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .set('Authorization', `Bearer ${secondCandidateToken}`)
+            .field('cvRetentionConsent', 'false')
+            .attach('cv', Buffer.from('%PDF-1.4 false consent CV'), {
+                filename: 'false-consent.pdf',
+                contentType: 'application/pdf',
+            })
+            .expect(201)) as unknown as {
+                body: ApplicationResponse
+            }
+
+        expect(response.body.cvRetentionConsent).toBe(false)
+        expect(response.body.cvConsentAt).toBeNull()
+        expect(response.body.cvExpiresAt).toBeTruthy()
+    })
+
+    it('should persist false when CV retention consent is missing', async () => {
+        await prisma.application.deleteMany({
+            where: { candidateId: secondCandidateId, jobId: secondPublishedJobId },
+        })
+        const response = (await request(app.getHttpServer())
+            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .set('Authorization', `Bearer ${secondCandidateToken}`)
+            .attach('cv', Buffer.from('%PDF-1.4 missing consent CV'), {
+                filename: 'missing-consent.pdf',
+                contentType: 'application/pdf',
+            })
+            .expect(201)) as unknown as {
+                body: ApplicationResponse
+            }
+
+        expect(response.body.cvRetentionConsent).toBe(false)
+        expect(response.body.cvConsentAt).toBeNull()
+        expect(response.body.cvExpiresAt).toBeTruthy()
+    })
+
+
+    it('should allow an admin to configure CV retention days', async () => {
+        const response = await request(app.getHttpServer())
+            .patch('/api/v1/settings/cv-retention')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                days: 90,
+            })
+            .expect(200)
+
+        expect(response.body.days).toBe(90)
+
+        const publicResponse = await request(app.getHttpServer())
+            .get('/api/v1/settings/cv-retention')
+            .expect(200)
+
+        expect(publicResponse.body.days).toBe(90)
+    })
+
+    it('should calculate CV expiration using the configured retention period', async () => {
+        await prisma.application.deleteMany({
+            where: { candidateId: secondCandidateId, jobId: secondPublishedJobId },
+        })
+        await request(app.getHttpServer())
+            .patch('/api/v1/settings/cv-retention')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                days: 90,
+            })
+            .expect(200)
+
+        const response = (await request(app.getHttpServer())
+            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .set('Authorization', `Bearer ${secondCandidateToken}`)
+            .field('cvRetentionConsent', 'true')
+            .attach('cv', Buffer.from('%PDF-1.4 configurable retention CV'), {
+                filename: 'configurable-retention.pdf',
+                contentType: 'application/pdf',
+            })
+            .expect(201)) as unknown as {
+                body: ApplicationResponse
+            }
+
+        expect(response.body.cvRetentionConsent).toBe(true)
+        expect(response.body.cvConsentAt).toBeTruthy()
+        expect(response.body.cvExpiresAt).toBeTruthy()
+
+        const expiresAt = new Date(String(response.body.cvExpiresAt))
+        const expected = Date.now() + 90 * 24 * 60 * 60 * 1000
+
+        expect(expiresAt.getTime()).toBeGreaterThan(expected - 60_000)
+        expect(expiresAt.getTime()).toBeLessThan(expected + 60_000)
+
+        // Restore the default for the rest of the test suite.
+        await request(app.getHttpServer())
+            .patch('/api/v1/settings/cv-retention')
+            .set('Authorization', `Bearer ${adminToken}`)
+            .send({
+                days: 28,
+            })
+            .expect(200)
+    })
+
 })

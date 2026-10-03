@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common'
+
 import { ApplicationsController } from './applications.controller'
 import { ApplicationsService } from './applications.service'
-import { PrismaService } from '../database/prisma.service'
+import { CvRetentionService } from './cv-retention.service'
 
 @Module({
     controllers: [ApplicationsController],
-    providers: [ApplicationsService, PrismaService],
+    providers: [
+        ApplicationsService,
+        CvRetentionService,
+    ],
 })
 export class ApplicationsModule { }

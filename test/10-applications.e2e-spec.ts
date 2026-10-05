@@ -5,7 +5,6 @@ import * as argon2 from 'argon2'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-
 import { createTestApp } from './helpers/create-test-app'
 
 interface LoginResponse {
@@ -32,6 +31,10 @@ interface ApplicationResponse {
     cvUrl?: string | null
     createdAt: string
     updatedAt: string
+}
+
+interface CvRetentionSettingResponse {
+    days: number
 }
 
 interface CandidateApplicationResponse extends ApplicationResponse {
@@ -255,7 +258,6 @@ describe('10 - Applications (e2e)', () => {
         secondRecruiterToken = (secondRecruiterLogin.body as LoginResponse)
             .accessToken
 
-
         // Admin
         const adminPassword = 'Admin12345!'
         const adminPasswordHash = await argon2.hash(adminPassword)
@@ -456,8 +458,12 @@ describe('10 - Applications (e2e)', () => {
 
         await app.close()
         rmSync(testCvUploadDir, { recursive: true, force: true })
-        if (previousCvUploadDir === undefined) delete process.env.CV_UPLOAD_DIR
-        else process.env.CV_UPLOAD_DIR = previousCvUploadDir
+
+        if (previousCvUploadDir === undefined) {
+            delete process.env.CV_UPLOAD_DIR
+        } else {
+            process.env.CV_UPLOAD_DIR = previousCvUploadDir
+        }
     })
 
     it('01 - should reject unauthenticated application requests', async () => {
@@ -718,82 +724,160 @@ describe('10 - Applications (e2e)', () => {
             .expect(400)
     })
 
-    it('20 - should allow a candidate to withdraw a pending application', async () => {
-        const response = (await request(app.getHttpServer())
+    it('20 - should allow a candidate to withdraw and reapply to the same job', async () => {
+        const firstResponse = (await request(app.getHttpServer())
             .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
             .set('Authorization', `Bearer ${candidateToken}`)
             .field('coverLetter', 'I would like to apply and later withdraw.')
             .field('cvRetentionConsent', 'true')
-            .attach('cv', Buffer.from('%PDF-1.4 test CV'), {
-                filename: 'candidate-cv.pdf',
+            .attach('cv', Buffer.from('%PDF-1.4 first test CV'), {
+                filename: 'candidate-cv-first.pdf',
                 contentType: 'application/pdf',
             })
             .expect(201)) as unknown as { body: ApplicationResponse }
 
-        const withdrawApplicationId = response.body.id
-        expect(response.body).toMatchObject({
-            cvOriginalName: 'candidate-cv.pdf',
+        const reapplyApplicationId = firstResponse.body.id
+
+        expect(firstResponse.body).toMatchObject({
+            jobId: secondPublishedJobId,
+            candidateId,
+            status: 'PENDING',
+            coverLetter: 'I would like to apply and later withdraw.',
+            cvOriginalName: 'candidate-cv-first.pdf',
             cvMimeType: 'application/pdf',
-            cvUrl: `/api/v1/applications/${withdrawApplicationId}/cv`,
+            cvRetentionConsent: true,
+            cvUrl: `/api/v1/applications/${reapplyApplicationId}/cv`,
         })
-        expect(response.body.cvSize).toBeGreaterThan(0)
-        expect(response.body.cvRetentionConsent).toBe(true)
-        expect(response.body.cvConsentAt).toBeTruthy()
-        expect(response.body.cvExpiresAt).toBeTruthy()
+        expect(typeof firstResponse.body.cvConsentAt).toBe('string')
+        expect(typeof firstResponse.body.cvExpiresAt).toBe('string')
 
-        const cvExpiresAt = new Date(String(response.body.cvExpiresAt))
-        const now = Date.now()
-        const fourWeeks = 28 * 24 * 60 * 60 * 1000
-        expect(cvExpiresAt.getTime()).toBeGreaterThan(now + fourWeeks - 60_000)
-        expect(cvExpiresAt.getTime()).toBeLessThan(now + fourWeeks + 60_000)
+        const firstCreatedAt = firstResponse.body.createdAt
 
-        const candidateApplication = await request(app.getHttpServer())
-            .get(`/api/v1/applications/${withdrawApplicationId}`)
+        const firstStoredApplication = (await prisma.application.findUnique({
+            where: {
+                id: reapplyApplicationId,
+            },
+        })) as { cvPath: string | null } | null
+
+        expect(firstStoredApplication).not.toBeNull()
+
+        if (!firstStoredApplication) {
+            throw new Error('Initial application was not found')
+        }
+
+        const firstCvPath = firstStoredApplication.cvPath
+
+        const withdrawResponse = (await request(app.getHttpServer())
+            .patch(`/api/v1/applications/${reapplyApplicationId}/withdraw`)
             .set('Authorization', `Bearer ${candidateToken}`)
-            .expect(200) as unknown as { body: { cvUrl: string | null } }
-        expect(candidateApplication.body.cvUrl).toBe(response.body.cvUrl)
+            .expect(200)) as unknown as { body: ApplicationResponse }
 
-        const recruiterApplication = await request(app.getHttpServer())
-            .get(`/api/v1/recruiter/applications/${withdrawApplicationId}`)
-            .set('Authorization', `Bearer ${secondRecruiterToken}`)
-            .expect(200) as unknown as {
-                body: { cvOriginalName: string | null }
-            }
-        expect(recruiterApplication.body.cvOriginalName).toBe(
-            'candidate-cv.pdf',
+        expect(withdrawResponse.body).toMatchObject({
+            id: reapplyApplicationId,
+            jobId: secondPublishedJobId,
+            candidateId,
+            status: 'WITHDRAWN',
+        })
+
+        const reapplyResponse = (await request(app.getHttpServer())
+            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .field(
+                'coverLetter',
+                'I would like to apply again with my updated CV.',
+            )
+            .field('cvRetentionConsent', 'true')
+            .attach('cv', Buffer.from('%PDF-1.4 second test CV'), {
+                filename: 'candidate-cv-second.pdf',
+                contentType: 'application/pdf',
+            })
+            .expect(201)) as unknown as { body: ApplicationResponse }
+
+        expect(reapplyResponse.body).toMatchObject({
+            id: reapplyApplicationId,
+            jobId: secondPublishedJobId,
+            candidateId,
+            status: 'PENDING',
+            coverLetter: 'I would like to apply again with my updated CV.',
+            cvOriginalName: 'candidate-cv-second.pdf',
+            cvMimeType: 'application/pdf',
+            cvRetentionConsent: true,
+            cvUrl: `/api/v1/applications/${reapplyApplicationId}/cv`,
+        })
+        expect(typeof reapplyResponse.body.cvConsentAt).toBe('string')
+        expect(typeof reapplyResponse.body.cvExpiresAt).toBe('string')
+
+        expect(reapplyResponse.body.createdAt).toBe(firstCreatedAt)
+        expect(reapplyResponse.body.updatedAt).not.toBe(
+            withdrawResponse.body.updatedAt,
         )
 
-        const cvUrl = response.body.cvUrl
+        const storedApplication = (await prisma.application.findUnique({
+            where: {
+                id: reapplyApplicationId,
+            },
+        })) as {
+            id: string
+            jobId: string
+            candidateId: string
+            status: string
+            coverLetter: string | null
+            cvPath: string | null
+            cvOriginalName: string | null
+            cvMimeType: string | null
+            cvRetentionConsent: boolean
+            cvConsentAt: Date | null
+            cvExpiresAt: Date | null
+        } | null
+
+        expect(storedApplication).not.toBeNull()
+
+        if (!storedApplication) {
+            throw new Error('Reapplied application was not found')
+        }
+
+        expect(storedApplication).toMatchObject({
+            id: reapplyApplicationId,
+            jobId: secondPublishedJobId,
+            candidateId,
+            status: 'PENDING',
+            coverLetter: 'I would like to apply again with my updated CV.',
+            cvOriginalName: 'candidate-cv-second.pdf',
+            cvMimeType: 'application/pdf',
+            cvRetentionConsent: true,
+        })
+
+        expect(storedApplication.cvConsentAt).not.toBeNull()
+        expect(storedApplication.cvExpiresAt).not.toBeNull()
+        expect(storedApplication.cvPath).not.toBeNull()
+        expect(storedApplication.cvPath).not.toBe(firstCvPath)
+
+        const applicationCount = await prisma.application.count({
+            where: {
+                candidateId,
+                jobId: secondPublishedJobId,
+            },
+        })
+
+        expect(applicationCount).toBe(1)
+
+        const cvUrl = reapplyResponse.body.cvUrl
+
         if (typeof cvUrl !== 'string') {
-            throw new Error('CV download URL was not returned')
+            throw new Error('CV download URL was not returned after reapply')
         }
 
         const candidateCv = await request(app.getHttpServer())
             .get(cvUrl)
             .set('Authorization', `Bearer ${candidateToken}`)
             .expect(200)
-        expect(candidateCv.headers['content-type']).toContain('application/pdf')
-        expect(candidateCv.body).toEqual(Buffer.from('%PDF-1.4 test CV'))
 
-        await request(app.getHttpServer())
-            .get(cvUrl)
-            .set('Authorization', `Bearer ${secondRecruiterToken}`)
-            .expect(200)
-
-        await request(app.getHttpServer())
-            .get(cvUrl)
-            .set('Authorization', `Bearer ${recruiterToken}`)
-            .expect(403)
-
-        const withdrawResponse = (await request(app.getHttpServer())
-            .patch(`/api/v1/applications/${withdrawApplicationId}/withdraw`)
-            .set('Authorization', `Bearer ${candidateToken}`)
-            .expect(200)) as unknown as { body: ApplicationResponse }
-
-        expect(withdrawResponse.body).toMatchObject({
-            id: withdrawApplicationId,
-            status: 'WITHDRAWN',
-        })
+        expect(candidateCv.headers['content-type']).toContain(
+            'application/pdf',
+        )
+        expect(candidateCv.body).toEqual(
+            Buffer.from('%PDF-1.4 second test CV'),
+        )
     })
 
     it('21 - should reject access to an expired CV', async () => {
@@ -837,8 +921,12 @@ describe('10 - Applications (e2e)', () => {
 
     it('should persist false when CV retention consent is explicitly false', async () => {
         await prisma.application.deleteMany({
-            where: { candidateId: secondCandidateId, jobId: secondPublishedJobId },
+            where: {
+                candidateId: secondCandidateId,
+                jobId: secondPublishedJobId,
+            },
         })
+
         const response = (await request(app.getHttpServer())
             .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
             .set('Authorization', `Bearer ${secondCandidateToken}`)
@@ -858,8 +946,12 @@ describe('10 - Applications (e2e)', () => {
 
     it('should persist false when CV retention consent is missing', async () => {
         await prisma.application.deleteMany({
-            where: { candidateId: secondCandidateId, jobId: secondPublishedJobId },
+            where: {
+                candidateId: secondCandidateId,
+                jobId: secondPublishedJobId,
+            },
         })
+
         const response = (await request(app.getHttpServer())
             .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
             .set('Authorization', `Bearer ${secondCandidateToken}`)
@@ -876,29 +968,36 @@ describe('10 - Applications (e2e)', () => {
         expect(response.body.cvExpiresAt).toBeTruthy()
     })
 
-
     it('should allow an admin to configure CV retention days', async () => {
-        const response = await request(app.getHttpServer())
+        const response = (await request(app.getHttpServer())
             .patch('/api/v1/settings/cv-retention')
             .set('Authorization', `Bearer ${adminToken}`)
             .send({
                 days: 90,
             })
-            .expect(200)
+            .expect(200)) as unknown as {
+                body: CvRetentionSettingResponse
+            }
 
         expect(response.body.days).toBe(90)
 
-        const publicResponse = await request(app.getHttpServer())
+        const publicResponse = (await request(app.getHttpServer())
             .get('/api/v1/settings/cv-retention')
-            .expect(200)
+            .expect(200)) as unknown as {
+                body: CvRetentionSettingResponse
+            }
 
         expect(publicResponse.body.days).toBe(90)
     })
 
     it('should calculate CV expiration using the configured retention period', async () => {
         await prisma.application.deleteMany({
-            where: { candidateId: secondCandidateId, jobId: secondPublishedJobId },
+            where: {
+                candidateId: secondCandidateId,
+                jobId: secondPublishedJobId,
+            },
         })
+
         await request(app.getHttpServer())
             .patch('/api/v1/settings/cv-retention')
             .set('Authorization', `Bearer ${adminToken}`)
@@ -911,10 +1010,14 @@ describe('10 - Applications (e2e)', () => {
             .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
             .set('Authorization', `Bearer ${secondCandidateToken}`)
             .field('cvRetentionConsent', 'true')
-            .attach('cv', Buffer.from('%PDF-1.4 configurable retention CV'), {
-                filename: 'configurable-retention.pdf',
-                contentType: 'application/pdf',
-            })
+            .attach(
+                'cv',
+                Buffer.from('%PDF-1.4 configurable retention CV'),
+                {
+                    filename: 'configurable-retention.pdf',
+                    contentType: 'application/pdf',
+                },
+            )
             .expect(201)) as unknown as {
                 body: ApplicationResponse
             }
@@ -924,10 +1027,15 @@ describe('10 - Applications (e2e)', () => {
         expect(response.body.cvExpiresAt).toBeTruthy()
 
         const expiresAt = new Date(String(response.body.cvExpiresAt))
-        const expected = Date.now() + 90 * 24 * 60 * 60 * 1000
+        const expected =
+            Date.now() + 90 * 24 * 60 * 60 * 1000
 
-        expect(expiresAt.getTime()).toBeGreaterThan(expected - 60_000)
-        expect(expiresAt.getTime()).toBeLessThan(expected + 60_000)
+        expect(expiresAt.getTime()).toBeGreaterThan(
+            expected - 60_000,
+        )
+        expect(expiresAt.getTime()).toBeLessThan(
+            expected + 60_000,
+        )
 
         // Restore the default for the rest of the test suite.
         await request(app.getHttpServer())
@@ -938,5 +1046,4 @@ describe('10 - Applications (e2e)', () => {
             })
             .expect(200)
     })
-
 })

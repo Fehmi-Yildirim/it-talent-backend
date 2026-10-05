@@ -74,7 +74,10 @@ export class ApplicationsService {
             },
         })
 
-        if (existingApplication) {
+        if (
+            existingApplication &&
+            existingApplication.status !== ApplicationStatus.WITHDRAWN
+        ) {
             throw new ConflictException('You have already applied for this job')
         }
 
@@ -106,7 +109,7 @@ export class ApplicationsService {
         const cvExpiresAt = file
             ? new Date(
                 Date.now() +
-                cvRetentionDays! * 24 * 60 * 60 * 1000,
+                cvRetentionDays * 24 * 60 * 60 * 1000,
             )
             : null
 
@@ -114,6 +117,43 @@ export class ApplicationsService {
             file && dto.cvRetentionConsent === true ? new Date() : null
 
         try {
+            if (existingApplication) {
+                const updatedApplication =
+                    await this.prisma.application.update({
+                        where: {
+                            id: existingApplication.id,
+                        },
+                        data: {
+                            coverLetter: dto.coverLetter,
+                            status: ApplicationStatus.PENDING,
+
+                            cvPath: cvPath ?? null,
+                            cvOriginalName: file?.originalname ?? null,
+                            cvMimeType: file?.mimetype ?? null,
+                            cvSize: file?.size ?? null,
+
+                            cvExpiresAt,
+                            cvRetentionConsent:
+                                dto.cvRetentionConsent ?? false,
+                            cvConsentAt,
+                        },
+                    })
+
+                if (
+                    existingApplication.cvPath &&
+                    existingApplication.cvPath !== cvPath
+                ) {
+                    await unlink(
+                        join(
+                            this.getStorageRoot(),
+                            existingApplication.cvPath,
+                        ),
+                    ).catch(() => undefined)
+                }
+
+                return this.withCvUrl(updatedApplication)
+            }
+
             const application = await this.prisma.application.create({
                 data: {
                     candidateId: candidate.id,

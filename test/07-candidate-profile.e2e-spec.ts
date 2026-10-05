@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/database/prisma.service';
 import * as argon2 from 'argon2';
 import request from 'supertest';
-
+import { randomBytes } from 'node:crypto';
 import { createTestApp } from './helpers/create-test-app';
 
 describe('07 - Candidate Profile (e2e)', () => {
@@ -17,6 +16,8 @@ describe('07 - Candidate Profile (e2e)', () => {
   let candidateId: string;
 
   let recruiterToken: string;
+  let firstCvContent: Buffer;
+  let secondCvContent: Buffer;
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -190,6 +191,194 @@ describe('07 - Candidate Profile (e2e)', () => {
     });
 
     expect(response.body.id).toEqual(expect.any(String));
+  });
+
+  it('should upload a CV for the authenticated candidate', async () => {
+    firstCvContent = Buffer.from('%PDF-1.7\ncandidate cv content');
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .attach('cv', firstCvContent, {
+        filename: 'candidate-cv.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      id: candidateId,
+      userId: candidateUserId,
+      cvOriginalName: 'candidate-cv.pdf',
+      cvMimeType: 'application/pdf',
+      cvSize: firstCvContent.length,
+      cvRetentionConsent: true,
+    });
+
+    expect(response.body.cvExpiresAt).toEqual(expect.any(String));
+    expect(response.body.cvConsentAt).toEqual(expect.any(String));
+    expect(response.body.cvUrl).toBe('/api/v1/candidates/me/cv');
+
+    const candidate = await prisma.candidate.findUnique({
+      where: {
+        id: candidateId,
+      },
+    });
+
+    expect(candidate).not.toBeNull();
+    expect(candidate?.cvOriginalName).toBe('candidate-cv.pdf');
+    expect(candidate?.cvMimeType).toBe('application/pdf');
+    expect(candidate?.cvSize).toBe(firstCvContent.length);
+    expect(candidate?.cvRetentionConsent).toBe(true);
+    expect(candidate?.cvConsentAt).not.toBeNull();
+    expect(candidate?.cvExpiresAt).not.toBeNull();
+    expect(candidate?.cvPath).toEqual(expect.any(String));
+  });
+
+  it('should allow the authenticated candidate to retrieve their own CV', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .expect(200);
+
+    expect(response.headers['content-type']).toMatch(/application\/pdf/);
+    expect(response.headers['content-disposition']).toContain('candidate-cv.pdf');
+    expect(Buffer.from(response.body)).toEqual(firstCvContent);
+  });
+
+  it('should reject CV access for non-CANDIDATE users', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${recruiterToken}`)
+      .expect(403);
+  });
+
+  it('should replace an existing candidate CV', async () => {
+    const oldCandidate = await prisma.candidate.findUnique({
+      where: {
+        id: candidateId,
+      },
+      select: {
+        cvPath: true,
+      },
+    });
+
+    expect(oldCandidate?.cvPath).toEqual(expect.any(String));
+
+    secondCvContent = Buffer.from('%PDF-1.7\nreplacement cv content');
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .attach('cv', secondCvContent, {
+        filename: 'updated-candidate-cv.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      id: candidateId,
+      userId: candidateUserId,
+      cvOriginalName: 'updated-candidate-cv.pdf',
+      cvMimeType: 'application/pdf',
+      cvSize: secondCvContent.length,
+      cvRetentionConsent: true,
+    });
+
+    const updatedCandidate = await prisma.candidate.findUnique({
+      where: {
+        id: candidateId,
+      },
+      select: {
+        cvPath: true,
+        cvOriginalName: true,
+        cvMimeType: true,
+        cvSize: true,
+      },
+    });
+
+    expect(updatedCandidate?.cvPath).toEqual(expect.any(String));
+    expect(updatedCandidate?.cvPath).not.toBe(oldCandidate?.cvPath);
+    expect(updatedCandidate?.cvOriginalName).toBe('updated-candidate-cv.pdf');
+    expect(updatedCandidate?.cvMimeType).toBe('application/pdf');
+    expect(updatedCandidate?.cvSize).toBe(secondCvContent.length);
+
+    const responseAfterReplace = await request(app.getHttpServer())
+      .get('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .expect(200);
+
+    expect(Buffer.from(responseAfterReplace.body)).toEqual(secondCvContent);
+  });
+
+  it('should reject invalid CV files', async () => {
+    const invalidCv = randomBytes(32);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .attach('cv', invalidCv, {
+        filename: 'malicious.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(400);
+  });
+
+  it('should reject access to an expired CV', async () => {
+    const expiredAt = new Date(Date.now() - 60 * 1000);
+
+    await prisma.candidate.update({
+      where: {
+        id: candidateId,
+      },
+      data: {
+        cvExpiresAt: expiredAt,
+      },
+    });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .expect(404);
+  });
+
+  it('should delete the candidate CV', async () => {
+    const response = await request(app.getHttpServer())
+      .delete('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual({
+      message: 'CV deleted successfully',
+    });
+
+    const candidate = await prisma.candidate.findUnique({
+      where: {
+        id: candidateId,
+      },
+    });
+
+    expect(candidate).not.toBeNull();
+    expect(candidate?.cvPath).toBeNull();
+    expect(candidate?.cvOriginalName).toBeNull();
+    expect(candidate?.cvMimeType).toBeNull();
+    expect(candidate?.cvSize).toBeNull();
+    expect(candidate?.cvExpiresAt).toBeNull();
+    expect(candidate?.cvRetentionConsent).toBe(false);
+    expect(candidate?.cvConsentAt).toBeNull();
+  });
+
+  it('should reject access after the CV has been deleted', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .expect(404);
+  });
+
+  it('should reject deleting a CV when no CV exists', async () => {
+    await request(app.getHttpServer())
+      .delete('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .expect(404);
   });
 
   it('should update only the authenticated user candidate profile', async () => {

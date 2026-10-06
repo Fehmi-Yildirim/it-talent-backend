@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common'
 import { PrismaService } from '../src/database/prisma.service'
 import request from 'supertest'
 import * as argon2 from 'argon2'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTestApp } from './helpers/create-test-app'
@@ -110,6 +110,7 @@ describe('10 - Applications (e2e)', () => {
     let expiredJobId: string
 
     let applicationId: string
+    let managedCvApplicationId: string
     let previousCvUploadDir: string | undefined
     let testCvUploadDir: string
 
@@ -117,6 +118,7 @@ describe('10 - Applications (e2e)', () => {
         previousCvUploadDir = process.env.CV_UPLOAD_DIR
         testCvUploadDir = mkdtempSync(join(tmpdir(), 'it-talent-cvs-'))
         process.env.CV_UPLOAD_DIR = testCvUploadDir
+
         app = await createTestApp()
         prisma = app.get(PrismaService)
 
@@ -188,8 +190,9 @@ describe('10 - Applications (e2e)', () => {
             })
             .expect(201)
 
-        secondCandidateToken = (secondCandidateLogin.body as LoginResponse)
-            .accessToken
+        secondCandidateToken = (
+            secondCandidateLogin.body as LoginResponse
+        ).accessToken
 
         // Recruiter 1
         const recruiterPassword = 'Recruiter12345!'
@@ -255,8 +258,9 @@ describe('10 - Applications (e2e)', () => {
             })
             .expect(201)
 
-        secondRecruiterToken = (secondRecruiterLogin.body as LoginResponse)
-            .accessToken
+        secondRecruiterToken = (
+            secondRecruiterLogin.body as LoginResponse
+        ).accessToken
 
         // Admin
         const adminPassword = 'Admin12345!'
@@ -340,7 +344,9 @@ describe('10 - Applications (e2e)', () => {
                 currency: 'EUR',
                 status: 'PUBLISHED',
                 publishedAt: new Date(),
-                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                expiresAt: new Date(
+                    Date.now() + 7 * 24 * 60 * 60 * 1000,
+                ),
             },
         })
 
@@ -361,7 +367,9 @@ describe('10 - Applications (e2e)', () => {
                 currency: 'EUR',
                 status: 'PUBLISHED',
                 publishedAt: new Date(),
-                expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                expiresAt: new Date(
+                    Date.now() + 7 * 24 * 60 * 60 * 1000,
+                ),
             },
         })
 
@@ -400,8 +408,12 @@ describe('10 - Applications (e2e)', () => {
                 salaryMax: 6000,
                 currency: 'EUR',
                 status: 'PUBLISHED',
-                publishedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-                expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                publishedAt: new Date(
+                    Date.now() - 14 * 24 * 60 * 60 * 1000,
+                ),
+                expiresAt: new Date(
+                    Date.now() - 24 * 60 * 60 * 1000,
+                ),
             },
         })
 
@@ -453,11 +465,17 @@ describe('10 - Applications (e2e)', () => {
         })
 
         await prisma.user.deleteMany({
-            where: { id: adminUserId },
+            where: {
+                id: adminUserId,
+            },
         })
 
         await app.close()
-        rmSync(testCvUploadDir, { recursive: true, force: true })
+
+        rmSync(testCvUploadDir, {
+            recursive: true,
+            force: true,
+        })
 
         if (previousCvUploadDir === undefined) {
             delete process.env.CV_UPLOAD_DIR
@@ -482,7 +500,9 @@ describe('10 - Applications (e2e)', () => {
             .send({
                 coverLetter: 'I would love to join your team.',
             })
-            .expect(201)) as unknown as { body: ApplicationResponse }
+            .expect(201)) as unknown as {
+                body: ApplicationResponse
+            }
 
         expect(response.body).toMatchObject({
             jobId: publishedJobId,
@@ -516,7 +536,9 @@ describe('10 - Applications (e2e)', () => {
             .send({
                 coverLetter: 'I am also interested in this position.',
             })
-            .expect(201)) as unknown as { body: ApplicationResponse }
+            .expect(201)) as unknown as {
+                body: ApplicationResponse
+            }
 
         expect(response.body).toMatchObject({
             jobId: publishedJobId,
@@ -582,12 +604,13 @@ describe('10 - Applications (e2e)', () => {
     })
 
     it('09 - should prevent a candidate from viewing another candidate application', async () => {
-        const secondCandidateApplication = await prisma.application.findFirst({
-            where: {
-                candidateId: secondCandidateId,
-                jobId: publishedJobId,
-            },
-        })
+        const secondCandidateApplication =
+            await prisma.application.findFirst({
+                where: {
+                    candidateId: secondCandidateId,
+                    jobId: publishedJobId,
+                },
+            })
 
         expect(secondCandidateApplication).not.toBeNull()
 
@@ -649,12 +672,16 @@ describe('10 - Applications (e2e)', () => {
 
     it('13 - should allow the recruiter to move an application to REVIEWING', async () => {
         const response = (await request(app.getHttpServer())
-            .patch(`/api/v1/recruiter/applications/${applicationId}/status`)
+            .patch(
+                `/api/v1/recruiter/applications/${applicationId}/status`,
+            )
             .set('Authorization', `Bearer ${recruiterToken}`)
             .send({
                 status: 'REVIEWING',
             })
-            .expect(200)) as unknown as { body: ApplicationResponse }
+            .expect(200)) as unknown as {
+                body: ApplicationResponse
+            }
 
         expect(response.body).toMatchObject({
             id: applicationId,
@@ -664,12 +691,16 @@ describe('10 - Applications (e2e)', () => {
 
     it('14 - should allow the recruiter to accept an application', async () => {
         const response = (await request(app.getHttpServer())
-            .patch(`/api/v1/recruiter/applications/${applicationId}/status`)
+            .patch(
+                `/api/v1/recruiter/applications/${applicationId}/status`,
+            )
             .set('Authorization', `Bearer ${recruiterToken}`)
             .send({
                 status: 'ACCEPTED',
             })
-            .expect(200)) as unknown as { body: ApplicationResponse }
+            .expect(200)) as unknown as {
+                body: ApplicationResponse
+            }
 
         expect(response.body).toMatchObject({
             id: applicationId,
@@ -679,7 +710,9 @@ describe('10 - Applications (e2e)', () => {
 
     it('15 - should reject an invalid status transition', async () => {
         await request(app.getHttpServer())
-            .patch(`/api/v1/recruiter/applications/${applicationId}/status`)
+            .patch(
+                `/api/v1/recruiter/applications/${applicationId}/status`,
+            )
             .set('Authorization', `Bearer ${recruiterToken}`)
             .send({
                 status: 'PENDING',
@@ -689,7 +722,9 @@ describe('10 - Applications (e2e)', () => {
 
     it('16 - should prevent another recruiter from changing the application status', async () => {
         await request(app.getHttpServer())
-            .patch(`/api/v1/recruiter/applications/${applicationId}/status`)
+            .patch(
+                `/api/v1/recruiter/applications/${applicationId}/status`,
+            )
             .set('Authorization', `Bearer ${secondRecruiterToken}`)
             .send({
                 status: 'REJECTED',
@@ -716,7 +751,9 @@ describe('10 - Applications (e2e)', () => {
 
     it('19 - should reject an invalid application status', async () => {
         await request(app.getHttpServer())
-            .patch(`/api/v1/recruiter/applications/${applicationId}/status`)
+            .patch(
+                `/api/v1/recruiter/applications/${applicationId}/status`,
+            )
             .set('Authorization', `Bearer ${recruiterToken}`)
             .send({
                 status: 'INVALID',
@@ -726,15 +763,26 @@ describe('10 - Applications (e2e)', () => {
 
     it('20 - should allow a candidate to withdraw and reapply to the same job', async () => {
         const firstResponse = (await request(app.getHttpServer())
-            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .post(
+                `/api/v1/jobs/${secondPublishedJobId}/applications`,
+            )
             .set('Authorization', `Bearer ${candidateToken}`)
-            .field('coverLetter', 'I would like to apply and later withdraw.')
+            .field(
+                'coverLetter',
+                'I would like to apply and later withdraw.',
+            )
             .field('cvRetentionConsent', 'true')
-            .attach('cv', Buffer.from('%PDF-1.4 first test CV'), {
-                filename: 'candidate-cv-first.pdf',
-                contentType: 'application/pdf',
-            })
-            .expect(201)) as unknown as { body: ApplicationResponse }
+            .attach(
+                'cv',
+                Buffer.from('%PDF-1.4 first test CV'),
+                {
+                    filename: 'candidate-cv-first.pdf',
+                    contentType: 'application/pdf',
+                },
+            )
+            .expect(201)) as unknown as {
+                body: ApplicationResponse
+            }
 
         const reapplyApplicationId = firstResponse.body.id
 
@@ -748,16 +796,18 @@ describe('10 - Applications (e2e)', () => {
             cvRetentionConsent: true,
             cvUrl: `/api/v1/applications/${reapplyApplicationId}/cv`,
         })
+
         expect(typeof firstResponse.body.cvConsentAt).toBe('string')
         expect(typeof firstResponse.body.cvExpiresAt).toBe('string')
 
         const firstCreatedAt = firstResponse.body.createdAt
 
-        const firstStoredApplication = (await prisma.application.findUnique({
-            where: {
-                id: reapplyApplicationId,
-            },
-        })) as { cvPath: string | null } | null
+        const firstStoredApplication =
+            (await prisma.application.findUnique({
+                where: {
+                    id: reapplyApplicationId,
+                },
+            })) as { cvPath: string | null } | null
 
         expect(firstStoredApplication).not.toBeNull()
 
@@ -768,9 +818,13 @@ describe('10 - Applications (e2e)', () => {
         const firstCvPath = firstStoredApplication.cvPath
 
         const withdrawResponse = (await request(app.getHttpServer())
-            .patch(`/api/v1/applications/${reapplyApplicationId}/withdraw`)
+            .patch(
+                `/api/v1/applications/${reapplyApplicationId}/withdraw`,
+            )
             .set('Authorization', `Bearer ${candidateToken}`)
-            .expect(200)) as unknown as { body: ApplicationResponse }
+            .expect(200)) as unknown as {
+                body: ApplicationResponse
+            }
 
         expect(withdrawResponse.body).toMatchObject({
             id: reapplyApplicationId,
@@ -780,30 +834,40 @@ describe('10 - Applications (e2e)', () => {
         })
 
         const reapplyResponse = (await request(app.getHttpServer())
-            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .post(
+                `/api/v1/jobs/${secondPublishedJobId}/applications`,
+            )
             .set('Authorization', `Bearer ${candidateToken}`)
             .field(
                 'coverLetter',
                 'I would like to apply again with my updated CV.',
             )
             .field('cvRetentionConsent', 'true')
-            .attach('cv', Buffer.from('%PDF-1.4 second test CV'), {
-                filename: 'candidate-cv-second.pdf',
-                contentType: 'application/pdf',
-            })
-            .expect(201)) as unknown as { body: ApplicationResponse }
+            .attach(
+                'cv',
+                Buffer.from('%PDF-1.4 second test CV'),
+                {
+                    filename: 'candidate-cv-second.pdf',
+                    contentType: 'application/pdf',
+                },
+            )
+            .expect(201)) as unknown as {
+                body: ApplicationResponse
+            }
 
         expect(reapplyResponse.body).toMatchObject({
             id: reapplyApplicationId,
             jobId: secondPublishedJobId,
             candidateId,
             status: 'PENDING',
-            coverLetter: 'I would like to apply again with my updated CV.',
+            coverLetter:
+                'I would like to apply again with my updated CV.',
             cvOriginalName: 'candidate-cv-second.pdf',
             cvMimeType: 'application/pdf',
             cvRetentionConsent: true,
             cvUrl: `/api/v1/applications/${reapplyApplicationId}/cv`,
         })
+
         expect(typeof reapplyResponse.body.cvConsentAt).toBe('string')
         expect(typeof reapplyResponse.body.cvExpiresAt).toBe('string')
 
@@ -812,23 +876,11 @@ describe('10 - Applications (e2e)', () => {
             withdrawResponse.body.updatedAt,
         )
 
-        const storedApplication = (await prisma.application.findUnique({
+        const storedApplication = await prisma.application.findUnique({
             where: {
                 id: reapplyApplicationId,
             },
-        })) as {
-            id: string
-            jobId: string
-            candidateId: string
-            status: string
-            coverLetter: string | null
-            cvPath: string | null
-            cvOriginalName: string | null
-            cvMimeType: string | null
-            cvRetentionConsent: boolean
-            cvConsentAt: Date | null
-            cvExpiresAt: Date | null
-        } | null
+        })
 
         expect(storedApplication).not.toBeNull()
 
@@ -841,7 +893,8 @@ describe('10 - Applications (e2e)', () => {
             jobId: secondPublishedJobId,
             candidateId,
             status: 'PENDING',
-            coverLetter: 'I would like to apply again with my updated CV.',
+            coverLetter:
+                'I would like to apply again with my updated CV.',
             cvOriginalName: 'candidate-cv-second.pdf',
             cvMimeType: 'application/pdf',
             cvRetentionConsent: true,
@@ -864,7 +917,9 @@ describe('10 - Applications (e2e)', () => {
         const cvUrl = reapplyResponse.body.cvUrl
 
         if (typeof cvUrl !== 'string') {
-            throw new Error('CV download URL was not returned after reapply')
+            throw new Error(
+                'CV download URL was not returned after reapply',
+            )
         }
 
         const candidateCv = await request(app.getHttpServer())
@@ -875,12 +930,195 @@ describe('10 - Applications (e2e)', () => {
         expect(candidateCv.headers['content-type']).toContain(
             'application/pdf',
         )
+
         expect(candidateCv.body).toEqual(
             Buffer.from('%PDF-1.4 second test CV'),
         )
+
+        // Keep this application for the dedicated replace/delete tests.
+        managedCvApplicationId = reapplyApplicationId
     })
 
-    it('21 - should reject access to an expired CV', async () => {
+    it('21 - should allow a candidate to replace their CV', async () => {
+        const application = await prisma.application.findUnique({
+            where: {
+                id: managedCvApplicationId,
+            },
+        })
+
+        expect(application).not.toBeNull()
+
+        if (!application) {
+            throw new Error('Managed CV application was not found')
+        }
+
+        const oldCvPath = application.cvPath
+
+        expect(oldCvPath).not.toBeNull()
+
+        const firstCvResponse = await request(app.getHttpServer())
+            .get(
+                `/api/v1/applications/${managedCvApplicationId}/cv`,
+            )
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200)
+
+        expect(firstCvResponse.headers['content-type']).toContain(
+            'application/pdf',
+        )
+
+        const replacementBuffer = Buffer.from(
+            '%PDF-1.4 replacement test CV',
+        )
+
+        const response = (await request(app.getHttpServer())
+            .patch(
+                `/api/v1/applications/${managedCvApplicationId}/cv`,
+            )
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .attach('cv', replacementBuffer, {
+                filename: 'candidate-cv-replacement.pdf',
+                contentType: 'application/pdf',
+            })
+            .expect(200)) as unknown as {
+                body: ApplicationResponse
+            }
+
+        expect(response.body).toMatchObject({
+            id: managedCvApplicationId,
+            candidateId,
+            cvOriginalName: 'candidate-cv-replacement.pdf',
+            cvMimeType: 'application/pdf',
+            cvSize: replacementBuffer.length,
+            cvUrl: `/api/v1/applications/${managedCvApplicationId}/cv`,
+        })
+
+        expect(response.body.cvPath).toBeUndefined()
+
+        if (!oldCvPath) {
+            throw new Error('Old CV path was not stored')
+        }
+
+        expect(
+            existsSync(join(testCvUploadDir, oldCvPath)),
+        ).toBe(false)
+
+        const storedApplication = await prisma.application.findUnique({
+            where: {
+                id: managedCvApplicationId,
+            },
+        })
+
+        expect(storedApplication).not.toBeNull()
+        expect(storedApplication?.cvOriginalName).toBe(
+            'candidate-cv-replacement.pdf',
+        )
+        expect(storedApplication?.cvPath).not.toBe(oldCvPath)
+
+        const cvResponse = await request(app.getHttpServer())
+            .get(
+                `/api/v1/applications/${managedCvApplicationId}/cv`,
+            )
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200)
+
+        expect(cvResponse.body).toEqual(replacementBuffer)
+    })
+
+    it('22 - should allow a candidate to delete their CV', async () => {
+        const application = await prisma.application.findUnique({
+            where: {
+                id: managedCvApplicationId,
+            },
+        })
+
+        expect(application).not.toBeNull()
+
+        if (!application) {
+            throw new Error('Managed CV application was not found')
+        }
+
+        expect(application.cvPath).not.toBeNull()
+
+        const cvPath = application.cvPath
+
+        if (!cvPath) {
+            throw new Error('CV path was not stored')
+        }
+
+        const response = (await request(app.getHttpServer())
+            .delete(
+                `/api/v1/applications/${managedCvApplicationId}/cv`,
+            )
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(200)) as unknown as {
+                body: ApplicationResponse
+            }
+
+        expect(response.body).toMatchObject({
+            id: managedCvApplicationId,
+            candidateId,
+            cvOriginalName: null,
+            cvMimeType: null,
+            cvSize: null,
+            cvExpiresAt: null,
+            cvRetentionConsent: false,
+            cvConsentAt: null,
+            cvUrl: null,
+        })
+
+        expect(response.body.cvPath).toBeUndefined()
+
+        expect(
+            existsSync(join(testCvUploadDir, cvPath)),
+        ).toBe(false)
+
+        const storedApplication = await prisma.application.findUnique({
+            where: {
+                id: managedCvApplicationId,
+            },
+        })
+
+        expect(storedApplication).not.toBeNull()
+
+        expect(storedApplication?.cvPath).toBeNull()
+        expect(storedApplication?.cvOriginalName).toBeNull()
+        expect(storedApplication?.cvMimeType).toBeNull()
+        expect(storedApplication?.cvSize).toBeNull()
+        expect(storedApplication?.cvExpiresAt).toBeNull()
+        expect(storedApplication?.cvRetentionConsent).toBe(false)
+        expect(storedApplication?.cvConsentAt).toBeNull()
+
+        await request(app.getHttpServer())
+            .get(
+                `/api/v1/applications/${managedCvApplicationId}/cv`,
+            )
+            .set('Authorization', `Bearer ${candidateToken}`)
+            .expect(404)
+    })
+
+    it('23 - should prevent another candidate from replacing a CV', async () => {
+        const response = await request(app.getHttpServer())
+            .patch(
+                `/api/v1/applications/${managedCvApplicationId}/cv`,
+            )
+            .set(
+                'Authorization',
+                `Bearer ${secondCandidateToken}`,
+            )
+            .attach(
+                'cv',
+                Buffer.from('%PDF-1.4 unauthorized replacement'),
+                {
+                    filename: 'unauthorized.pdf',
+                    contentType: 'application/pdf',
+                },
+            )
+
+        expect(response.status).toBe(403)
+    })
+
+    it('24 - should reject access to an expired CV', async () => {
         const expiredApplication = await prisma.application.create({
             data: {
                 candidateId: secondCandidateId,
@@ -892,23 +1130,32 @@ describe('10 - Applications (e2e)', () => {
                 cvSize: Buffer.from('%PDF-1.4 expired test CV').length,
                 cvExpiresAt: new Date(Date.now() - 60 * 1000),
                 cvRetentionConsent: true,
-                cvConsentAt: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000),
+                cvConsentAt: new Date(
+                    Date.now() - 29 * 24 * 60 * 60 * 1000,
+                ),
             },
         })
 
         try {
             await request(app.getHttpServer())
-                .get(`/api/v1/applications/${expiredApplication.id}/cv`)
-                .set('Authorization', `Bearer ${secondCandidateToken}`)
+                .get(
+                    `/api/v1/applications/${expiredApplication.id}/cv`,
+                )
+                .set(
+                    'Authorization',
+                    `Bearer ${secondCandidateToken}`,
+                )
                 .expect(404)
         } finally {
             await prisma.application.delete({
-                where: { id: expiredApplication.id },
+                where: {
+                    id: expiredApplication.id,
+                },
             })
         }
     })
 
-    it('should reject unsupported CV uploads', async () => {
+    it('25 - should reject unsupported CV uploads', async () => {
         await request(app.getHttpServer())
             .post(`/api/v1/jobs/${publishedJobId}/applications`)
             .set('Authorization', `Bearer ${candidateToken}`)
@@ -919,7 +1166,7 @@ describe('10 - Applications (e2e)', () => {
             .expect(400)
     })
 
-    it('should persist false when CV retention consent is explicitly false', async () => {
+    it('26 - should persist false when CV retention consent is explicitly false', async () => {
         await prisma.application.deleteMany({
             where: {
                 candidateId: secondCandidateId,
@@ -928,13 +1175,19 @@ describe('10 - Applications (e2e)', () => {
         })
 
         const response = (await request(app.getHttpServer())
-            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .post(
+                `/api/v1/jobs/${secondPublishedJobId}/applications`,
+            )
             .set('Authorization', `Bearer ${secondCandidateToken}`)
             .field('cvRetentionConsent', 'false')
-            .attach('cv', Buffer.from('%PDF-1.4 false consent CV'), {
-                filename: 'false-consent.pdf',
-                contentType: 'application/pdf',
-            })
+            .attach(
+                'cv',
+                Buffer.from('%PDF-1.4 false consent CV'),
+                {
+                    filename: 'false-consent.pdf',
+                    contentType: 'application/pdf',
+                },
+            )
             .expect(201)) as unknown as {
                 body: ApplicationResponse
             }
@@ -944,7 +1197,7 @@ describe('10 - Applications (e2e)', () => {
         expect(response.body.cvExpiresAt).toBeTruthy()
     })
 
-    it('should persist false when CV retention consent is missing', async () => {
+    it('27 - should persist false when CV retention consent is missing', async () => {
         await prisma.application.deleteMany({
             where: {
                 candidateId: secondCandidateId,
@@ -953,12 +1206,18 @@ describe('10 - Applications (e2e)', () => {
         })
 
         const response = (await request(app.getHttpServer())
-            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .post(
+                `/api/v1/jobs/${secondPublishedJobId}/applications`,
+            )
             .set('Authorization', `Bearer ${secondCandidateToken}`)
-            .attach('cv', Buffer.from('%PDF-1.4 missing consent CV'), {
-                filename: 'missing-consent.pdf',
-                contentType: 'application/pdf',
-            })
+            .attach(
+                'cv',
+                Buffer.from('%PDF-1.4 missing consent CV'),
+                {
+                    filename: 'missing-consent.pdf',
+                    contentType: 'application/pdf',
+                },
+            )
             .expect(201)) as unknown as {
                 body: ApplicationResponse
             }
@@ -968,7 +1227,7 @@ describe('10 - Applications (e2e)', () => {
         expect(response.body.cvExpiresAt).toBeTruthy()
     })
 
-    it('should allow an admin to configure CV retention days', async () => {
+    it('28 - should allow an admin to configure CV retention days', async () => {
         const response = (await request(app.getHttpServer())
             .patch('/api/v1/settings/cv-retention')
             .set('Authorization', `Bearer ${adminToken}`)
@@ -990,7 +1249,7 @@ describe('10 - Applications (e2e)', () => {
         expect(publicResponse.body.days).toBe(90)
     })
 
-    it('should calculate CV expiration using the configured retention period', async () => {
+    it('29 - should calculate CV expiration using the configured retention period', async () => {
         await prisma.application.deleteMany({
             where: {
                 candidateId: secondCandidateId,
@@ -1007,7 +1266,9 @@ describe('10 - Applications (e2e)', () => {
             .expect(200)
 
         const response = (await request(app.getHttpServer())
-            .post(`/api/v1/jobs/${secondPublishedJobId}/applications`)
+            .post(
+                `/api/v1/jobs/${secondPublishedJobId}/applications`,
+            )
             .set('Authorization', `Bearer ${secondCandidateToken}`)
             .field('cvRetentionConsent', 'true')
             .attach(
@@ -1026,13 +1287,17 @@ describe('10 - Applications (e2e)', () => {
         expect(response.body.cvConsentAt).toBeTruthy()
         expect(response.body.cvExpiresAt).toBeTruthy()
 
-        const expiresAt = new Date(String(response.body.cvExpiresAt))
+        const expiresAt = new Date(
+            String(response.body.cvExpiresAt),
+        )
+
         const expected =
             Date.now() + 90 * 24 * 60 * 60 * 1000
 
         expect(expiresAt.getTime()).toBeGreaterThan(
             expected - 60_000,
         )
+
         expect(expiresAt.getTime()).toBeLessThan(
             expected + 60_000,
         )

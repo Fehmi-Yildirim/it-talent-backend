@@ -2,6 +2,7 @@ import {
     BadRequestException,
     Body,
     Controller,
+    Delete,
     Get,
     Param,
     ParseUUIDPipe,
@@ -26,12 +27,17 @@ import { UploadedCv } from './uploaded-cv.interface'
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class ApplicationsController {
-    constructor(private readonly applicationsService: ApplicationsService) {}
+    constructor(
+        private readonly applicationsService: ApplicationsService,
+    ) { }
 
     @Post('jobs/:jobId/applications')
     @UseInterceptors(
         FileInterceptor('cv', {
-            limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+            limits: {
+                fileSize: 10 * 1024 * 1024,
+                files: 1,
+            },
         }),
     )
     create(
@@ -40,34 +46,52 @@ export class ApplicationsController {
         @Body() dto: CreateApplicationDto,
         @UploadedFile() file?: UploadedCv,
     ) {
+        // CV is optional when creating an application.
         if (file) {
-            const extension = file.originalname.split('.').pop()?.toLowerCase()
-            const allowedTypes: Record<string, string[]> = {
-                pdf: ['application/pdf'],
-                doc: ['application/msword'],
-                docx: [
-                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                ],
-            }
-            const hasValidSignature =
-                (extension === 'pdf' &&
-                    file.buffer.subarray(0, 5).toString() === '%PDF-') ||
-                (extension === 'doc' &&
-                    file.buffer.subarray(0, 8).toString('hex') ===
-                        'd0cf11e0a1b11ae1') ||
-                (extension === 'docx' &&
-                    file.buffer.subarray(0, 2).toString() === 'PK')
-            if (
-                !extension ||
-                !allowedTypes[extension]?.includes(file.mimetype) ||
-                !hasValidSignature
-            ) {
-                throw new BadRequestException(
-                    'CV must be a PDF, DOC, or DOCX file',
-                )
-            }
+            this.validateCv(file)
         }
-        return this.applicationsService.create(req.user.id, jobId, dto, file)
+
+        return this.applicationsService.create(
+            req.user.id,
+            jobId,
+            dto,
+            file,
+        )
+    }
+
+    @Patch('applications/:applicationId/cv')
+    @UseInterceptors(
+        FileInterceptor('cv', {
+            limits: {
+                fileSize: 10 * 1024 * 1024,
+                files: 1,
+            },
+        }),
+    )
+    replaceCv(
+        @Req() req: AuthenticatedRequest,
+        @Param('applicationId', new ParseUUIDPipe()) applicationId: string,
+        @UploadedFile() file?: UploadedCv,
+    ) {
+        // CV is required when replacing an existing CV.
+        this.validateCv(file)
+
+        return this.applicationsService.replaceCv(
+            req.user.id,
+            applicationId,
+            file,
+        )
+    }
+
+    @Delete('applications/:applicationId/cv')
+    deleteCv(
+        @Req() req: AuthenticatedRequest,
+        @Param('applicationId', new ParseUUIDPipe()) applicationId: string,
+    ) {
+        return this.applicationsService.deleteCv(
+            req.user.id,
+            applicationId,
+        )
     }
 
     @Get('applications/:applicationId/cv')
@@ -80,10 +104,12 @@ export class ApplicationsController {
             req.user.id,
             applicationId,
         )
+
         response.set({
             'Content-Type': cv.mimeType,
             'Content-Disposition': `attachment; filename="${encodeURIComponent(cv.originalName)}"`,
         })
+
         return new StreamableFile(cv.stream)
     }
 
@@ -97,7 +123,10 @@ export class ApplicationsController {
         @Req() req: AuthenticatedRequest,
         @Param('applicationId', new ParseUUIDPipe()) applicationId: string,
     ) {
-        return this.applicationsService.findOne(req.user.id, applicationId)
+        return this.applicationsService.findOne(
+            req.user.id,
+            applicationId,
+        )
     }
 
     @Patch('applications/:applicationId/withdraw')
@@ -105,12 +134,17 @@ export class ApplicationsController {
         @Req() req: AuthenticatedRequest,
         @Param('applicationId', new ParseUUIDPipe()) applicationId: string,
     ) {
-        return this.applicationsService.withdraw(req.user.id, applicationId)
+        return this.applicationsService.withdraw(
+            req.user.id,
+            applicationId,
+        )
     }
 
     @Get('recruiter/applications')
     findAllForRecruiter(@Req() req: AuthenticatedRequest) {
-        return this.applicationsService.findAllForRecruiter(req.user.id)
+        return this.applicationsService.findAllForRecruiter(
+            req.user.id,
+        )
     }
 
     @Get('recruiter/applications/:applicationId')
@@ -135,5 +169,43 @@ export class ApplicationsController {
             applicationId,
             dto.status,
         )
+    }
+
+    private validateCv(file?: UploadedCv) {
+        if (!file) {
+            throw new BadRequestException('CV file is required')
+        }
+
+        const extension = file.originalname
+            .split('.')
+            .pop()
+            ?.toLowerCase()
+
+        const allowedTypes: Record<string, string[]> = {
+            pdf: ['application/pdf'],
+            doc: ['application/msword'],
+            docx: [
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ],
+        }
+
+        const hasValidSignature =
+            (extension === 'pdf' &&
+                file.buffer.subarray(0, 5).toString() === '%PDF-') ||
+            (extension === 'doc' &&
+                file.buffer.subarray(0, 8).toString('hex') ===
+                'd0cf11e0a1b11ae1') ||
+            (extension === 'docx' &&
+                file.buffer.subarray(0, 2).toString() === 'PK')
+
+        if (
+            !extension ||
+            !allowedTypes[extension]?.includes(file.mimetype) ||
+            !hasValidSignature
+        ) {
+            throw new BadRequestException(
+                'CV must be a PDF, DOC, or DOCX file',
+            )
+        }
     }
 }

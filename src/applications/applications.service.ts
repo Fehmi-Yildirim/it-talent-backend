@@ -184,6 +184,161 @@ export class ApplicationsService {
         }
     }
 
+    async replaceCv(
+        candidateUserId: string,
+        applicationId: string,
+        file?: UploadedCv,
+    ) {
+        if (!file) {
+            throw new BadRequestException('CV file is required')
+        }
+
+        const candidate = await this.prisma.candidate.findUnique({
+            where: {
+                userId: candidateUserId,
+            },
+        })
+
+        if (!candidate) {
+            throw new ForbiddenException(
+                'Only candidates can replace CVs',
+            )
+        }
+
+        const application = await this.prisma.application.findUnique({
+            where: {
+                id: applicationId,
+            },
+        })
+
+        if (!application) {
+            throw new NotFoundException('Application not found')
+        }
+
+        if (application.candidateId !== candidate.id) {
+            throw new ForbiddenException(
+                'You are not allowed to modify this application',
+            )
+        }
+
+        const uploadDirectory = this.getUploadDirectory()
+
+        await mkdir(uploadDirectory, { recursive: true })
+
+        const newCvPath = join(
+            'cvs',
+            `${randomUUID()}${this.getFileExtension(file.originalname)}`,
+        )
+
+        const newFilePath = join(
+            this.getStorageRoot(),
+            newCvPath,
+        )
+
+        await writeFile(newFilePath, file.buffer, {
+            flag: 'wx',
+        })
+
+        try {
+            const cvRetentionDays =
+                await this.settingsService.getCvRetentionDays()
+
+            const cvExpiresAt = new Date(
+                Date.now() +
+                cvRetentionDays * 24 * 60 * 60 * 1000,
+            )
+
+            const updatedApplication =
+                await this.prisma.application.update({
+                    where: {
+                        id: application.id,
+                    },
+                    data: {
+                        cvPath: newCvPath,
+                        cvOriginalName: file.originalname,
+                        cvMimeType: file.mimetype,
+                        cvSize: file.size,
+                        cvExpiresAt,
+                    },
+                })
+
+            if (application.cvPath) {
+                await unlink(
+                    join(
+                        this.getStorageRoot(),
+                        application.cvPath,
+                    ),
+                ).catch(() => undefined)
+            }
+
+            return this.withCvUrl(updatedApplication)
+        } catch (error) {
+            await unlink(newFilePath).catch(() => undefined)
+
+            throw error
+        }
+    }
+
+    async deleteCv(
+        candidateUserId: string,
+        applicationId: string,
+    ) {
+        const candidate = await this.prisma.candidate.findUnique({
+            where: {
+                userId: candidateUserId,
+            },
+        })
+
+        if (!candidate) {
+            throw new ForbiddenException(
+                'Only candidates can delete CVs',
+            )
+        }
+
+        const application = await this.prisma.application.findUnique({
+            where: {
+                id: applicationId,
+            },
+        })
+
+        if (!application) {
+            throw new NotFoundException('Application not found')
+        }
+
+        if (application.candidateId !== candidate.id) {
+            throw new ForbiddenException(
+                'You are not allowed to modify this application',
+            )
+        }
+
+        const updatedApplication =
+            await this.prisma.application.update({
+                where: {
+                    id: application.id,
+                },
+                data: {
+                    cvPath: null,
+                    cvOriginalName: null,
+                    cvMimeType: null,
+                    cvSize: null,
+                    cvExpiresAt: null,
+                    cvRetentionConsent: false,
+                    cvConsentAt: null,
+                },
+            })
+
+        if (application.cvPath) {
+            await unlink(
+                join(
+                    this.getStorageRoot(),
+                    application.cvPath,
+                ),
+            ).catch(() => undefined)
+        }
+
+        return this.withCvUrl(updatedApplication)
+    }
+
     async findAll(candidateUserId: string) {
         const candidate = await this.prisma.candidate.findUnique({
             where: {
@@ -522,7 +677,6 @@ export class ApplicationsService {
             )
         }
 
-        // Do not allow access after the configured CV retention period.
         if (
             application.cvExpiresAt &&
             application.cvExpiresAt <= new Date()

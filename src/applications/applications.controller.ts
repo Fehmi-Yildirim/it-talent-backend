@@ -46,7 +46,6 @@ export class ApplicationsController {
         @Body() dto: CreateApplicationDto,
         @UploadedFile() file?: UploadedCv,
     ) {
-        // CV is optional when creating an application.
         if (file) {
             this.validateCv(file)
         }
@@ -73,7 +72,6 @@ export class ApplicationsController {
         @Param('applicationId', new ParseUUIDPipe()) applicationId: string,
         @UploadedFile() file?: UploadedCv,
     ) {
-        // CV is required when replacing an existing CV.
         this.validateCv(file)
 
         return this.applicationsService.replaceCv(
@@ -107,7 +105,7 @@ export class ApplicationsController {
 
         response.set({
             'Content-Type': cv.mimeType,
-            'Content-Disposition': `attachment; filename="${encodeURIComponent(cv.originalName)}"`,
+            'Content-Disposition': `inline; filename="${encodeURIComponent(cv.originalName)}"`,
         })
 
         return new StreamableFile(cv.stream)

@@ -4,9 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-
 import { PrismaService } from '../database/prisma.service';
 import { CandidatesService } from './candidates.service';
+import { SettingsService } from '../settings/settings.service';
 
 describe('CandidatesService', () => {
   let service: CandidatesService;
@@ -32,6 +32,12 @@ describe('CandidatesService', () => {
           provide: PrismaService,
           useValue: prismaMock,
         },
+        {
+          provide: SettingsService,
+          useValue: {
+            getCvRetentionDays: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -44,6 +50,7 @@ describe('CandidatesService', () => {
         id: 'candidate-1',
         userId: 'user-1',
         headline: 'Full Stack Developer',
+        cvUrl: '/api/v1/candidates/me/cv',
       };
 
       prismaMock.candidate.findUnique.mockResolvedValue(candidate);
@@ -64,9 +71,15 @@ describe('CandidatesService', () => {
           salaryMin: true,
           salaryMax: true,
           currency: true,
-          availabilityDate: true,
-          remotePreference: true,
-          createdAt: true,
+        availabilityDate: true,
+        remotePreference: true,
+        cvOriginalName: true,
+        cvMimeType: true,
+        cvSize: true,
+        cvExpiresAt: true,
+        cvRetentionConsent: true,
+        cvConsentAt: true,
+        createdAt: true,
           updatedAt: true,
         },
       });

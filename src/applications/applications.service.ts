@@ -6,16 +6,35 @@ import {
     NotFoundException,
     InternalServerErrorException,
 } from '@nestjs/common'
+import { execFile } from 'node:child_process'
 import { createReadStream } from 'node:fs'
-import { mkdir, unlink, writeFile } from 'node:fs/promises'
-import { basename, join, resolve, sep } from 'node:path'
+import {
+    mkdir,
+    mkdtemp,
+    readFile,
+    rm,
+    unlink,
+    writeFile,
+} from 'node:fs/promises'
+import { promisify } from 'node:util'
+import {
+    basename,
+    extname,
+    join,
+    resolve,
+    sep,
+} from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
-import type { Readable } from 'node:stream'
+import { Readable } from 'node:stream'
 import { ApplicationStatus, JobStatus } from '../../generated/prisma/enums'
 import { PrismaService } from '../database/prisma.service'
 import { SettingsService } from '../settings/settings.service'
 import { CreateApplicationDto } from './dto/create-application.dto'
 import { UploadedCv } from './uploaded-cv.interface'
+
+const execFileAsync = promisify(execFile)
 
 @Injectable()
 export class ApplicationsService {
@@ -693,10 +712,101 @@ export class ApplicationsService {
             )
         }
 
+        const extension = extname(application.cvOriginalName).toLowerCase()
+
+        if (extension === '.doc' || extension === '.docx') {
+            return this.convertCvToPdf(
+                filePath,
+                application.cvOriginalName,
+            )
+        }
+
         return {
             stream: createReadStream(filePath),
             mimeType: application.cvMimeType,
             originalName: basename(application.cvOriginalName),
+        }
+    }
+
+    private async convertCvToPdf(
+        filePath: string,
+        originalName: string,
+    ): Promise<{
+        stream: Readable
+        mimeType: string
+        originalName: string
+    }> {
+        const conversionDirectory = await mkdtemp(
+            join(tmpdir(), 'it-talent-cv-'),
+        )
+
+        const inputExtension = extname(originalName).toLowerCase()
+        const inputFileName = `${randomUUID()}${inputExtension}`
+        const inputPath = join(
+            conversionDirectory,
+            inputFileName,
+        )
+
+        const profileDirectory = join(
+            conversionDirectory,
+            'profile',
+        )
+
+        await mkdir(profileDirectory, { recursive: true })
+
+        try {
+            await writeFile(
+                inputPath,
+                await readFile(filePath),
+            )
+
+            const sofficeCommand =
+                process.env.LIBREOFFICE_PATH ??
+                (process.platform === 'win32'
+                    ? 'C:\\Program Files\\LibreOffice\\program\\soffice.exe'
+                    : 'soffice')
+
+            await execFileAsync(
+                sofficeCommand,
+                [
+                    '--headless',
+                    `-env:UserInstallation=${pathToFileURL(profileDirectory).href}`,
+                    '--convert-to',
+                    'pdf:writer_pdf_Export',
+                    '--outdir',
+                    conversionDirectory,
+                    inputPath,
+                ],
+                {
+                    timeout: 30_000,
+                    maxBuffer: 1024 * 1024,
+                },
+            )
+
+            const pdfPath = join(
+                conversionDirectory,
+                `${basename(inputFileName, inputExtension)}.pdf`,
+            )
+
+            const pdfBuffer = await readFile(pdfPath)
+
+            return {
+                stream: Readable.from(pdfBuffer),
+                mimeType: 'application/pdf',
+                originalName: `${basename(
+                    originalName,
+                    extname(originalName),
+                )}.pdf`,
+            }
+        } catch {
+            throw new InternalServerErrorException(
+                'Unable to convert CV to PDF',
+            )
+        } finally {
+            await rm(conversionDirectory, {
+                recursive: true,
+                force: true,
+            }).catch(() => undefined)
         }
     }
 

@@ -100,21 +100,25 @@ export class ApplicationsService {
             throw new ConflictException('You have already applied for this job')
         }
 
+        const storedCv = file
+            ? await this.prepareCvForStorage(file)
+            : undefined
+
         let cvPath: string | undefined
 
-        if (file) {
+        if (storedCv) {
             const uploadDirectory = this.getUploadDirectory()
 
             await mkdir(uploadDirectory, { recursive: true })
 
             cvPath = join(
                 'cvs',
-                `${randomUUID()}${this.getFileExtension(file.originalname)}`,
+                `${randomUUID()}${this.getFileExtension(storedCv.originalname)}`,
             )
 
             await writeFile(
                 join(this.getStorageRoot(), cvPath),
-                file.buffer,
+                storedCv.buffer,
                 {
                     flag: 'wx',
                 },
@@ -147,9 +151,9 @@ export class ApplicationsService {
                             status: ApplicationStatus.PENDING,
 
                             cvPath: cvPath ?? null,
-                            cvOriginalName: file?.originalname ?? null,
-                            cvMimeType: file?.mimetype ?? null,
-                            cvSize: file?.size ?? null,
+                            cvOriginalName: storedCv?.originalname ?? null,
+                            cvMimeType: storedCv?.mimetype ?? null,
+                            cvSize: storedCv?.size ?? null,
 
                             cvExpiresAt,
                             cvRetentionConsent:
@@ -240,13 +244,15 @@ export class ApplicationsService {
             )
         }
 
+        const storedCv = await this.prepareCvForStorage(file)
+
         const uploadDirectory = this.getUploadDirectory()
 
         await mkdir(uploadDirectory, { recursive: true })
 
         const newCvPath = join(
             'cvs',
-            `${randomUUID()}${this.getFileExtension(file.originalname)}`,
+            `${randomUUID()}${this.getFileExtension(storedCv.originalname)}`,
         )
 
         const newFilePath = join(
@@ -254,7 +260,7 @@ export class ApplicationsService {
             newCvPath,
         )
 
-        await writeFile(newFilePath, file.buffer, {
+        await writeFile(newFilePath, storedCv.buffer, {
             flag: 'wx',
         })
 
@@ -274,9 +280,9 @@ export class ApplicationsService {
                     },
                     data: {
                         cvPath: newCvPath,
-                        cvOriginalName: file.originalname,
-                        cvMimeType: file.mimetype,
-                        cvSize: file.size,
+                        cvOriginalName: storedCv.originalname,
+                        cvMimeType: storedCv.mimetype,
+                        cvSize: storedCv.size,
                         cvExpiresAt,
                     },
                 })
@@ -712,15 +718,6 @@ export class ApplicationsService {
             )
         }
 
-        const extension = extname(application.cvOriginalName).toLowerCase()
-
-        if (extension === '.doc' || extension === '.docx') {
-            return this.convertCvToPdf(
-                filePath,
-                application.cvOriginalName,
-            )
-        }
-
         return {
             stream: createReadStream(filePath),
             mimeType: application.cvMimeType,
@@ -728,20 +725,20 @@ export class ApplicationsService {
         }
     }
 
-    private async convertCvToPdf(
-        filePath: string,
-        originalName: string,
-    ): Promise<{
-        stream: Readable
-        mimeType: string
-        originalName: string
-    }> {
+    private async prepareCvForStorage(
+        file: UploadedCv,
+    ): Promise<UploadedCv> {
+        const extension = extname(file.originalname).toLowerCase()
+
+        if (extension !== '.doc' && extension !== '.docx') {
+            return file
+        }
+
         const conversionDirectory = await mkdtemp(
             join(tmpdir(), 'it-talent-cv-'),
         )
 
-        const inputExtension = extname(originalName).toLowerCase()
-        const inputFileName = `${randomUUID()}${inputExtension}`
+        const inputFileName = `${randomUUID()}${extension}`
         const inputPath = join(
             conversionDirectory,
             inputFileName,
@@ -755,10 +752,7 @@ export class ApplicationsService {
         await mkdir(profileDirectory, { recursive: true })
 
         try {
-            await writeFile(
-                inputPath,
-                await readFile(filePath),
-            )
+            await writeFile(inputPath, file.buffer)
 
             const sofficeCommand =
                 process.env.LIBREOFFICE_PATH ??
@@ -785,18 +779,21 @@ export class ApplicationsService {
 
             const pdfPath = join(
                 conversionDirectory,
-                `${basename(inputFileName, inputExtension)}.pdf`,
+                `${basename(inputFileName, extension)}.pdf`,
             )
 
             const pdfBuffer = await readFile(pdfPath)
 
+            const pdfName = `${basename(
+                file.originalname,
+                extname(file.originalname),
+            )}.pdf`
+
             return {
-                stream: Readable.from(pdfBuffer),
-                mimeType: 'application/pdf',
-                originalName: `${basename(
-                    originalName,
-                    extname(originalName),
-                )}.pdf`,
+                buffer: pdfBuffer,
+                originalname: pdfName,
+                mimetype: 'application/pdf',
+                size: pdfBuffer.length,
             }
         } catch {
             throw new InternalServerErrorException(

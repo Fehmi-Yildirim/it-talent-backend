@@ -1,45 +1,62 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { unlink } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
-import { Cron, CronExpression } from '@nestjs/schedule'
+import {
+    Cron,
+    CronExpression,
+} from '@nestjs/schedule'
 import { PrismaService } from '../database/prisma.service'
 
 @Injectable()
 export class CvRetentionService {
-    private readonly logger = new Logger(CvRetentionService.name)
+    private readonly logger = new Logger(
+        CvRetentionService.name,
+    )
 
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+    ) { }
 
     @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
     async cleanupExpiredCvs() {
         const now = new Date()
 
-        const applications = await this.prisma.application.findMany({
-            where: {
-                cvExpiresAt: {
-                    lte: now,
+        const candidates =
+            await this.prisma.candidate.findMany({
+                where: {
+                    cvExpiresAt: {
+                        lte: now,
+                    },
+                    cvPath: {
+                        not: null,
+                    },
                 },
-                cvPath: {
-                    not: null,
+                select: {
+                    id: true,
+                    cvPath: true,
                 },
-            },
-            select: {
-                id: true,
-                cvPath: true,
-            },
-        })
+            })
 
-        for (const application of applications) {
-            if (!application.cvPath) {
+        const storageRoot =
+            this.getStorageRoot()
+
+        for (const candidate of candidates) {
+            if (!candidate.cvPath) {
                 continue
             }
 
-            const storageRoot = this.getStorageRoot()
-            const filePath = resolve(storageRoot, application.cvPath)
+            const filePath = resolve(
+                storageRoot,
+                candidate.cvPath,
+            )
 
-            if (!filePath.startsWith(`${storageRoot}${sep}`)) {
+            if (
+                !filePath.startsWith(
+                    `${storageRoot}${sep}`,
+                )
+            ) {
                 this.logger.error(
-                    `Invalid CV storage reference for application ${application.id}`,
+                    `Invalid CV storage reference for candidate ${candidate.id}`,
                 )
                 continue
             }
@@ -48,42 +65,51 @@ export class CvRetentionService {
                 await unlink(filePath)
             } catch (error) {
                 const code =
-                    error instanceof Error && 'code' in error
-                        ? (error as NodeJS.ErrnoException).code
+                    error instanceof Error &&
+                        'code' in error
+                        ? (error as NodeJS.ErrnoException)
+                            .code
                         : undefined
 
                 if (code !== 'ENOENT') {
                     this.logger.error(
-                        `Failed to delete CV for application ${application.id}`,
+                        `Failed to delete CV for candidate ${candidate.id}`,
                         error,
                     )
                     continue
                 }
             }
 
-            await this.prisma.application.update({
+            await this.prisma.candidate.update({
                 where: {
-                    id: application.id,
+                    id: candidate.id,
                 },
                 data: {
                     cvPath: null,
                     cvOriginalName: null,
                     cvMimeType: null,
                     cvSize: null,
+                    cvExpiresAt: null,
+                    cvRetentionConsent: false,
+                    cvConsentAt: null,
                 },
             })
         }
 
-        if (applications.length > 0) {
+        if (candidates.length > 0) {
             this.logger.log(
-                `Processed ${applications.length} expired CV(s)`,
+                `Processed ${candidates.length} expired CV(s)`,
             )
         }
     }
 
     private getStorageRoot(): string {
         return resolve(
-            process.env.CV_UPLOAD_DIR ?? join(process.cwd(), 'uploads'),
+            process.env.CV_UPLOAD_DIR ??
+            join(
+                process.cwd(),
+                'uploads',
+            ),
         )
     }
 }

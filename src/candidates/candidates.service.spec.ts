@@ -2,14 +2,14 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
-} from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { PrismaService } from '../database/prisma.service';
-import { CandidatesService } from './candidates.service';
-import { SettingsService } from '../settings/settings.service';
+} from '@nestjs/common'
+import { Test, TestingModule } from '@nestjs/testing'
+import { PrismaService } from '../database/prisma.service'
+import { CandidatesService } from './candidates.service'
+import { SettingsService } from '../settings/settings.service'
 
 describe('CandidatesService', () => {
-  let service: CandidatesService;
+  let service: CandidatesService
 
   const prismaMock = {
     user: {
@@ -20,29 +20,35 @@ describe('CandidatesService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
-  };
+  }
+
+  const settingsMock = {
+    getCvRetentionDays: jest.fn(),
+  }
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    jest.clearAllMocks()
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        CandidatesService,
-        {
-          provide: PrismaService,
-          useValue: prismaMock,
-        },
-        {
-          provide: SettingsService,
-          useValue: {
-            getCvRetentionDays: jest.fn(),
+    const module: TestingModule =
+      await Test.createTestingModule({
+        providers: [
+          CandidatesService,
+          {
+            provide: PrismaService,
+            useValue: prismaMock,
           },
-        },
-      ],
-    }).compile();
+          {
+            provide: SettingsService,
+            useValue: settingsMock,
+          },
+        ],
+      }).compile()
 
-    service = module.get<CandidatesService>(CandidatesService);
-  });
+    service =
+      module.get<CandidatesService>(
+        CandidatesService,
+      )
+  })
 
   describe('getMe', () => {
     it('should return the candidate profile for the authenticated user', async () => {
@@ -50,15 +56,38 @@ describe('CandidatesService', () => {
         id: 'candidate-1',
         userId: 'user-1',
         headline: 'Full Stack Developer',
-        cvUrl: '/api/v1/candidates/me/cv',
-      };
+        summary: null,
+        location: 'Rotterdam',
+        salaryMin: null,
+        salaryMax: null,
+        currency: null,
+        availabilityDate: null,
+        remotePreference: null,
+        cvOriginalName: null,
+        cvMimeType: null,
+        cvSize: null,
+        cvExpiresAt: null,
+        cvRetentionConsent: false,
+        cvConsentAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
 
-      prismaMock.candidate.findUnique.mockResolvedValue(candidate);
+      prismaMock.candidate.findUnique.mockResolvedValue(
+        candidate,
+      )
 
-      const result = await service.getMe('user-1');
+      const result =
+        await service.getMe('user-1')
 
-      expect(result).toEqual(candidate);
-      expect(prismaMock.candidate.findUnique).toHaveBeenCalledWith({
+      expect(result).toEqual({
+        ...candidate,
+        cvUrl: null,
+      })
+
+      expect(
+        prismaMock.candidate.findUnique,
+      ).toHaveBeenCalledWith({
         where: {
           userId: 'user-1',
         },
@@ -71,158 +100,217 @@ describe('CandidatesService', () => {
           salaryMin: true,
           salaryMax: true,
           currency: true,
-        availabilityDate: true,
-        remotePreference: true,
-        cvOriginalName: true,
-        cvMimeType: true,
-        cvSize: true,
-        cvExpiresAt: true,
-        cvRetentionConsent: true,
-        cvConsentAt: true,
-        createdAt: true,
+          availabilityDate: true,
+          remotePreference: true,
+          cvOriginalName: true,
+          cvMimeType: true,
+          cvSize: true,
+          cvExpiresAt: true,
+          cvRetentionConsent: true,
+          cvConsentAt: true,
+          createdAt: true,
           updatedAt: true,
         },
-      });
-    });
+      })
+    })
 
     it('should throw NotFoundException when the profile does not exist', async () => {
-      prismaMock.candidate.findUnique.mockResolvedValue(null);
+      prismaMock.candidate.findUnique.mockResolvedValue(
+        null,
+      )
 
-      await expect(service.getMe('user-1')).rejects.toThrow(NotFoundException);
-    });
-  });
+      await expect(
+        service.getMe('user-1'),
+      ).rejects.toThrow(
+        NotFoundException,
+      )
+    })
+  })
 
   describe('create', () => {
     const dto = {
       headline: 'Full Stack Developer',
       location: 'Rotterdam',
-    };
+    }
 
     it('should create a candidate profile for the authenticated user', async () => {
       prismaMock.user.findUnique.mockResolvedValue({
         id: 'user-1',
         role: 'CANDIDATE',
-      });
+      })
 
-      prismaMock.candidate.findUnique.mockResolvedValue(null);
+      prismaMock.candidate.findUnique.mockResolvedValue(
+        null,
+      )
 
       const candidate = {
         id: 'candidate-1',
         userId: 'user-1',
         ...dto,
-      };
+      }
 
-      prismaMock.candidate.create.mockResolvedValue(candidate);
+      prismaMock.candidate.create.mockResolvedValue(
+        candidate,
+      )
 
-      const result = await service.create('user-1', dto);
+      const result =
+        await service.create(
+          'user-1',
+          dto,
+        )
 
-      expect(result).toEqual(candidate);
-      expect(prismaMock.candidate.create).toHaveBeenCalledWith({
+      expect(result).toEqual(candidate)
+
+      expect(
+        prismaMock.candidate.create,
+      ).toHaveBeenCalledWith({
         data: {
           userId: 'user-1',
-          headline: 'Full Stack Developer',
+          headline:
+            'Full Stack Developer',
           summary: undefined,
           location: 'Rotterdam',
           salaryMin: undefined,
           salaryMax: undefined,
           currency: undefined,
-          availabilityDate: undefined,
-          remotePreference: undefined,
+          availabilityDate:
+            undefined,
+          remotePreference:
+            undefined,
         },
-      });
-    });
+      })
+    })
 
     it('should reject a non-existing user', async () => {
-      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.user.findUnique.mockResolvedValue(
+        null,
+      )
 
-      await expect(service.create('user-1', dto)).rejects.toThrow(
+      await expect(
+        service.create(
+          'user-1',
+          dto,
+        ),
+      ).rejects.toThrow(
         NotFoundException,
-      );
-    });
+      )
+    })
 
     it('should reject users who are not candidates', async () => {
       prismaMock.user.findUnique.mockResolvedValue({
         id: 'user-1',
         role: 'RECRUITER',
-      });
+      })
 
-      await expect(service.create('user-1', dto)).rejects.toThrow(
+      await expect(
+        service.create(
+          'user-1',
+          dto,
+        ),
+      ).rejects.toThrow(
         ForbiddenException,
-      );
-    });
+      )
+    })
 
     it('should reject duplicate candidate profiles', async () => {
       prismaMock.user.findUnique.mockResolvedValue({
         id: 'user-1',
         role: 'CANDIDATE',
-      });
+      })
 
       prismaMock.candidate.findUnique.mockResolvedValue({
         id: 'candidate-1',
         userId: 'user-1',
-      });
+      })
 
-      await expect(service.create('user-1', dto)).rejects.toThrow(
+      await expect(
+        service.create(
+          'user-1',
+          dto,
+        ),
+      ).rejects.toThrow(
         ConflictException,
-      );
-    });
-  });
+      )
+    })
+  })
 
   describe('updateMe', () => {
     it('should update the candidate profile belonging to the authenticated user', async () => {
       const existingCandidate = {
         id: 'candidate-1',
         userId: 'user-1',
-      };
+      }
 
       const dto = {
-        headline: 'Senior Full Stack Developer',
+        headline:
+          'Senior Full Stack Developer',
         location: 'Amsterdam',
-      };
+      }
 
       const updatedCandidate = {
         ...existingCandidate,
         ...dto,
-      };
+      }
 
-      prismaMock.candidate.findUnique.mockResolvedValue(existingCandidate);
-      prismaMock.candidate.update.mockResolvedValue(updatedCandidate);
+      prismaMock.candidate.findUnique.mockResolvedValue(
+        existingCandidate,
+      )
+      prismaMock.candidate.update.mockResolvedValue(
+        updatedCandidate,
+      )
 
-      const result = await service.updateMe('user-1', dto);
+      const result =
+        await service.updateMe(
+          'user-1',
+          dto,
+        )
 
-      expect(result).toEqual(updatedCandidate);
+      expect(result).toEqual(
+        updatedCandidate,
+      )
 
-      expect(prismaMock.candidate.findUnique).toHaveBeenCalledWith({
+      expect(
+        prismaMock.candidate.findUnique,
+      ).toHaveBeenCalledWith({
         where: {
           userId: 'user-1',
         },
-      });
+      })
 
-      expect(prismaMock.candidate.update).toHaveBeenCalledWith({
+      expect(
+        prismaMock.candidate.update,
+      ).toHaveBeenCalledWith({
         where: {
           userId: 'user-1',
         },
         data: {
-          headline: 'Senior Full Stack Developer',
+          headline:
+            'Senior Full Stack Developer',
           summary: undefined,
           location: 'Amsterdam',
           salaryMin: undefined,
           salaryMax: undefined,
           currency: undefined,
-          availabilityDate: undefined,
-          remotePreference: undefined,
+          availabilityDate:
+            undefined,
+          remotePreference:
+            undefined,
         },
-      });
-    });
+      })
+    })
 
     it('should throw NotFoundException when the profile does not exist', async () => {
-      prismaMock.candidate.findUnique.mockResolvedValue(null);
+      prismaMock.candidate.findUnique.mockResolvedValue(
+        null,
+      )
 
       await expect(
         service.updateMe('user-1', {
           headline: 'New headline',
         }),
-      ).rejects.toThrow(NotFoundException);
-    });
-  });
-});
+      ).rejects.toThrow(
+        NotFoundException,
+      )
+    })
+  })
+})

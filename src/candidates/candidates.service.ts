@@ -40,14 +40,12 @@ export class CandidatesService {
         currency: true,
         availabilityDate: true,
         remotePreference: true,
-
         cvOriginalName: true,
         cvMimeType: true,
         cvSize: true,
         cvExpiresAt: true,
         cvRetentionConsent: true,
         cvConsentAt: true,
-
         createdAt: true,
         updatedAt: true,
       },
@@ -59,7 +57,11 @@ export class CandidatesService {
 
     return {
       ...candidate,
-      cvUrl: this.getCvUrl(candidate.id, candidate.cvExpiresAt),
+      cvUrl: this.getCvUrl(
+        candidate.id,
+        candidate.cvExpiresAt,
+        Boolean(candidate.cvOriginalName),
+      ),
     }
   }
 
@@ -157,7 +159,9 @@ export class CandidatesService {
 
     const uploadDirectory = this.getUploadDirectory()
 
-    await mkdir(uploadDirectory, { recursive: true })
+    await mkdir(uploadDirectory, {
+      recursive: true,
+    })
 
     const cvPath = join(
       'cvs',
@@ -176,50 +180,58 @@ export class CandidatesService {
       await this.settingsService.getCvRetentionDays()
 
     const cvExpiresAt = new Date(
-      Date.now() + cvRetentionDays * 24 * 60 * 60 * 1000,
+      Date.now() +
+      cvRetentionDays * 24 * 60 * 60 * 1000,
     )
 
     const cvConsentAt = new Date()
 
     try {
-      const updatedCandidate = await this.prisma.candidate.update({
-        where: {
-          id: candidate.id,
-        },
-        data: {
-          cvPath,
-          cvOriginalName: file.originalname,
-          cvMimeType: file.mimetype,
-          cvSize: file.size,
-          cvExpiresAt,
-          cvRetentionConsent: true,
-          cvConsentAt,
-        },
-        select: {
-          id: true,
-          userId: true,
-          headline: true,
-          summary: true,
-          location: true,
-          salaryMin: true,
-          salaryMax: true,
-          currency: true,
-          availabilityDate: true,
-          remotePreference: true,
-          cvOriginalName: true,
-          cvMimeType: true,
-          cvSize: true,
-          cvExpiresAt: true,
-          cvRetentionConsent: true,
-          cvConsentAt: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      })
+      const updatedCandidate =
+        await this.prisma.candidate.update({
+          where: {
+            id: candidate.id,
+          },
+          data: {
+            cvPath,
+            cvOriginalName: file.originalname,
+            cvMimeType: file.mimetype,
+            cvSize: file.size,
+            cvExpiresAt,
+            cvRetentionConsent: true,
+            cvConsentAt,
+          },
+          select: {
+            id: true,
+            userId: true,
+            headline: true,
+            summary: true,
+            location: true,
+            salaryMin: true,
+            salaryMax: true,
+            currency: true,
+            availabilityDate: true,
+            remotePreference: true,
+            cvOriginalName: true,
+            cvMimeType: true,
+            cvSize: true,
+            cvExpiresAt: true,
+            cvRetentionConsent: true,
+            cvConsentAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
 
-      if (candidate.cvPath && candidate.cvPath !== cvPath) {
+      if (
+        candidate.cvPath &&
+        candidate.cvPath !== cvPath
+      ) {
         await unlink(
-          join(this.getStorageRoot(), candidate.cvPath),
+          join(
+            this.getStorageRoot(),
+            candidate.cvPath,
+          ),
         ).catch(() => undefined)
       }
 
@@ -228,11 +240,15 @@ export class CandidatesService {
         cvUrl: this.getCvUrl(
           updatedCandidate.id,
           updatedCandidate.cvExpiresAt,
+          Boolean(updatedCandidate.cvOriginalName),
         ),
       }
     } catch (error) {
       await unlink(
-        join(this.getStorageRoot(), cvPath),
+        join(
+          this.getStorageRoot(),
+          cvPath,
+        ),
       ).catch(() => undefined)
 
       throw error
@@ -277,12 +293,17 @@ export class CandidatesService {
     }
 
     const storageRoot = this.getStorageRoot()
+
     const filePath = resolve(
       storageRoot,
       candidate.cvPath,
     )
 
-    if (!filePath.startsWith(`${storageRoot}${sep}`)) {
+    if (
+      !filePath.startsWith(
+        `${storageRoot}${sep}`,
+      )
+    ) {
       throw new InternalServerErrorException(
         'Invalid CV storage reference',
       )
@@ -291,7 +312,9 @@ export class CandidatesService {
     return {
       stream: createReadStream(filePath),
       mimeType: candidate.cvMimeType,
-      originalName: basename(candidate.cvOriginalName),
+      originalName: basename(
+        candidate.cvOriginalName,
+      ),
     }
   }
 
@@ -330,7 +353,10 @@ export class CandidatesService {
     })
 
     await unlink(
-      join(this.getStorageRoot(), candidate.cvPath),
+      join(
+        this.getStorageRoot(),
+        candidate.cvPath,
+      ),
     ).catch(() => undefined)
 
     return {
@@ -341,7 +367,12 @@ export class CandidatesService {
   private getCvUrl(
     candidateId: string,
     cvExpiresAt: Date | null,
+    hasCv: boolean,
   ): string | null {
+    if (!hasCv) {
+      return null
+    }
+
     if (
       cvExpiresAt &&
       cvExpiresAt <= new Date()
@@ -349,7 +380,7 @@ export class CandidatesService {
       return null
     }
 
-    return `/api/v1/candidates/me/cv`
+    return '/api/v1/candidates/me/cv'
   }
 
   private getStorageRoot(): string {
@@ -374,6 +405,8 @@ export class CandidatesService {
       .pop()
       ?.toLowerCase()
 
-    return extension ? `.${extension}` : ''
+    return extension
+      ? `.${extension}`
+      : ''
   }
 }

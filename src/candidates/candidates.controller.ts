@@ -44,7 +44,9 @@ type AuthenticatedRequest = Request & {
 @Roles(UserRole.CANDIDATE)
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CandidatesController {
-  constructor(private readonly candidatesService: CandidatesService) { }
+  constructor(
+    private readonly candidatesService: CandidatesService,
+  ) { }
 
   @Get('me')
   @ApiOperation({
@@ -83,14 +85,23 @@ export class CandidatesController {
   @ApiForbiddenResponse({
     description: 'Only candidates can create a candidate profile.',
   })
-  create(@Req() req: AuthenticatedRequest, @Body() dto: CreateCandidateDto) {
-    return this.candidatesService.create(req.user.id, dto)
+  create(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateCandidateDto,
+  ) {
+    return this.candidatesService.create(
+      req.user.id,
+      dto,
+    )
   }
 
   @Post('me/cv')
   @UseInterceptors(
     FileInterceptor('cv', {
-      limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 1,
+      },
     }),
   )
   uploadCv(
@@ -98,10 +109,15 @@ export class CandidatesController {
     @UploadedFile() file?: UploadedCandidateCv,
   ) {
     if (!file) {
-      throw new BadRequestException('CV file is required')
+      throw new BadRequestException(
+        'CV file is required',
+      )
     }
 
-    const extension = file.originalname.split('.').pop()?.toLowerCase()
+    const extension = file.originalname
+      .split('.')
+      .pop()
+      ?.toLowerCase()
 
     const allowedTypes: Record<string, string[]> = {
       pdf: ['application/pdf'],
@@ -122,7 +138,9 @@ export class CandidatesController {
 
     if (
       !extension ||
-      !allowedTypes[extension]?.includes(file.mimetype) ||
+      !allowedTypes[extension]?.includes(
+        file.mimetype,
+      ) ||
       !hasValidSignature
     ) {
       throw new BadRequestException(
@@ -130,7 +148,10 @@ export class CandidatesController {
       )
     }
 
-    return this.candidatesService.uploadCv(req.user.id, file)
+    return this.candidatesService.uploadCv(
+      req.user.id,
+      file,
+    )
   }
 
   @Get('me/cv')
@@ -138,7 +159,9 @@ export class CandidatesController {
     @Req() req: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const cv = await this.candidatesService.getCv(req.user.id)
+    const cv = await this.candidatesService.getCv(
+      req.user.id,
+    )
 
     response.set({
       'Content-Type': cv.mimeType,
@@ -154,7 +177,7 @@ export class CandidatesController {
   @ApiOperation({
     summary: 'Delete my CV',
     description:
-      'Deletes the CV belonging to the authenticated candidate.',
+      'Deletes the current CV belonging to the authenticated candidate.',
   })
   @ApiOkResponse({
     description: 'CV deleted successfully.',
@@ -169,7 +192,9 @@ export class CandidatesController {
     description: 'Candidate profile or CV not found.',
   })
   deleteCv(@Req() req: AuthenticatedRequest) {
-    return this.candidatesService.deleteCv(req.user.id)
+    return this.candidatesService.deleteCv(
+      req.user.id,
+    )
   }
 
   @Patch('me')
@@ -190,7 +215,13 @@ export class CandidatesController {
   @ApiNotFoundResponse({
     description: 'Candidate profile not found.',
   })
-  updateMe(@Req() req: AuthenticatedRequest, @Body() dto: UpdateCandidateDto) {
-    return this.candidatesService.updateMe(req.user.id, dto)
+  updateMe(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateCandidateDto,
+  ) {
+    return this.candidatesService.updateMe(
+      req.user.id,
+      dto,
+    )
   }
 }

@@ -1888,7 +1888,7 @@ describe('10 - Applications (e2e)', () => {
             .expect(200)
             .expect((response) => {
                 expect(
-                    response.body.cvUrl,
+                    (response.body as ApplicationResponse).cvUrl,
                 ).toBeNull()
             })
 

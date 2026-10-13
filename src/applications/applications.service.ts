@@ -596,10 +596,10 @@ export class ApplicationsService {
             stream: createReadStream(filePath),
             mimeType:
                 application.candidate.cvMimeType,
-            originalName: basename(
-                application.candidate
-                    .cvOriginalName,
-            ),
+            originalName:
+                application.candidate.cvMimeType === 'application/pdf'
+                    ? `${basename(application.candidate.cvOriginalName).replace(/\.[^.]+$/, '')}.pdf`
+                    : basename(application.candidate.cvOriginalName),
         }
     }
 

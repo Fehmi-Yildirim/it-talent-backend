@@ -5,9 +5,20 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common'
+import { execFile } from 'node:child_process'
 import { createReadStream } from 'node:fs'
-import { mkdir, unlink, writeFile } from 'node:fs/promises'
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rm,
+  unlink,
+  writeFile,
+} from 'node:fs/promises'
 import { basename, join, resolve, sep } from 'node:path'
+import { tmpdir } from 'node:os'
+import { pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
 import { randomUUID } from 'node:crypto'
 import type { Readable } from 'node:stream'
 
@@ -16,6 +27,9 @@ import { SettingsService } from '../settings/settings.service'
 import { CreateCandidateDto } from './dto/create-candidate.dto'
 import { UpdateCandidateDto } from './dto/update-candidate.dto'
 import { UploadedCandidateCv } from './uploaded-cv.interface'
+
+const execFileAsync = promisify(execFile)
+const PDF_MIME_TYPE = 'application/pdf'
 
 @Injectable()
 export class CandidatesService {
@@ -157,6 +171,12 @@ export class CandidatesService {
       throw new NotFoundException('Candidate profile not found')
     }
 
+    const converted = await this.convertCvToPdf(file)
+    const storedName = converted
+      ? this.withPdfExtension(file.originalname)
+      : file.originalname
+    const storedBuffer = converted ?? file.buffer
+    const storedMimeType = converted ? PDF_MIME_TYPE : file.mimetype
     const uploadDirectory = this.getUploadDirectory()
 
     await mkdir(uploadDirectory, {
@@ -165,12 +185,12 @@ export class CandidatesService {
 
     const cvPath = join(
       'cvs',
-      `${randomUUID()}${this.getFileExtension(file.originalname)}`,
+      `${randomUUID()}${this.getFileExtension(storedName)}`,
     )
 
     await writeFile(
       join(this.getStorageRoot(), cvPath),
-      file.buffer,
+      storedBuffer,
       {
         flag: 'wx',
       },
@@ -195,8 +215,8 @@ export class CandidatesService {
           data: {
             cvPath,
             cvOriginalName: file.originalname,
-            cvMimeType: file.mimetype,
-            cvSize: file.size,
+            cvMimeType: storedMimeType,
+            cvSize: storedBuffer.length,
             cvExpiresAt,
             cvRetentionConsent: true,
             cvConsentAt,
@@ -312,9 +332,9 @@ export class CandidatesService {
     return {
       stream: createReadStream(filePath),
       mimeType: candidate.cvMimeType,
-      originalName: basename(
-        candidate.cvOriginalName,
-      ),
+      originalName: candidate.cvMimeType === PDF_MIME_TYPE
+        ? this.withPdfExtension(basename(candidate.cvOriginalName))
+        : basename(candidate.cvOriginalName),
     }
   }
 
@@ -408,5 +428,57 @@ export class CandidatesService {
     return extension
       ? `.${extension}`
       : ''
+  }
+
+  private async convertCvToPdf(
+    file: UploadedCandidateCv,
+  ): Promise<Buffer | null> {
+    const extension = this.getFileExtension(file.originalname).toLowerCase()
+    if (extension === '.pdf') return null
+
+    const workDirectory = await mkdtemp(join(tmpdir(), 'it-talent-cv-'))
+    const inputPath = join(workDirectory, `input${extension}`)
+    const outputPath = join(workDirectory, 'input.pdf')
+
+    try {
+      await writeFile(inputPath, file.buffer, { flag: 'wx' })
+      const executable = process.env.LIBREOFFICE_BIN || 'soffice'
+      try {
+        await execFileAsync(executable, [
+          `-env:UserInstallation=${pathToFileURL(join(workDirectory, 'lo-profile')).href}`,
+          '--headless',
+          '--convert-to',
+          'pdf',
+          '--outdir',
+          workDirectory,
+          inputPath,
+        ], { timeout: 30_000, maxBuffer: 1024 * 1024 })
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          // LibreOffice is optional: preserve the original document if it is not installed.
+          return null
+        }
+        throw error
+      }
+
+      const pdf = await readFile(outputPath)
+      if (pdf.subarray(0, 5).toString() !== '%PDF-') {
+        throw new Error('Converter did not produce a valid PDF')
+      }
+      if (pdf.length > 10 * 1024 * 1024) {
+        throw new Error('Converted CV exceeds the maximum file size')
+      }
+      return pdf
+    } catch {
+      throw new InternalServerErrorException(
+        'Unable to convert the uploaded CV to PDF',
+      )
+    } finally {
+      await rm(workDirectory, { recursive: true, force: true })
+    }
+  }
+
+  private withPdfExtension(fileName: string): string {
+    return `${fileName.replace(/\.[^.]+$/, '')}.pdf`
   }
 }

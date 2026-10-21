@@ -387,6 +387,13 @@ export class ApplicationsService {
                             location: true,
                             cvPath: true,
                             cvExpiresAt: true,
+                            user: {
+                                select: {
+                                    firstName: true,
+                                    lastName: true,
+                                    email: true,
+                                },
+                            },
                         },
                     },
                 },
@@ -395,13 +402,30 @@ export class ApplicationsService {
                 },
             })
 
-        return applications.map((application) =>
-            this.withCvUrl(
-                application,
-                Boolean(application.candidate.cvPath),
-                application.candidate.cvExpiresAt,
-            ),
-        )
+        return applications.map((application) => {
+            const {
+                cvPath,
+                cvExpiresAt,
+                user,
+                ...candidate
+            } = application.candidate
+
+            const applicant = {
+                ...candidate,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+            }
+
+            return {
+                ...this.withCvUrl(
+                    application,
+                    Boolean(cvPath),
+                    cvExpiresAt,
+                ),
+                candidate: applicant,
+            }
+        })
     }
 
     async findOneForRecruiter(
@@ -458,6 +482,13 @@ export class ApplicationsService {
                             location: true,
                             cvPath: true,
                             cvExpiresAt: true,
+                            user: {
+                                select: {
+                                    firstName: true,
+                                    lastName: true,
+                                    email: true,
+                                },
+                            },
                         },
                     },
                 },
@@ -478,11 +509,28 @@ export class ApplicationsService {
             )
         }
 
-        return this.withCvUrl(
-            application,
-            Boolean(application.candidate.cvPath),
-            application.candidate.cvExpiresAt,
-        )
+        const {
+            cvPath,
+            cvExpiresAt,
+            user,
+            ...candidate
+        } = application.candidate
+
+        const applicant = {
+            ...candidate,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+        }
+
+        return {
+            ...this.withCvUrl(
+                application,
+                Boolean(cvPath),
+                cvExpiresAt,
+            ),
+            candidate: applicant,
+        }
     }
 
     async getCv(

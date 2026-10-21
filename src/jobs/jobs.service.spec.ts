@@ -1,4 +1,3 @@
-
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -1120,7 +1119,7 @@ describe('JobsService', () => {
     prisma.$transaction.mockResolvedValue([items, 1]);
 
     const result = await serviceResult<DiscoveryResult>(() =>
-      service.discover({
+      service.discover('candidate-user', {
         page: 2,
         limit: 10,
       }),
@@ -1322,9 +1321,9 @@ describe('JobsService', () => {
       status: 'DRAFT',
     } satisfies JobRecord);
 
-    await expect(
-      service.pause('user-a', 'job-1'),
-    ).rejects.toThrow('Only published jobs can be paused');
+    await expect(service.pause('user-a', 'job-1')).rejects.toThrow(
+      'Only published jobs can be paused',
+    );
 
     expect(prisma.job.update).not.toHaveBeenCalled();
   });
@@ -1339,9 +1338,9 @@ describe('JobsService', () => {
       status: 'PUBLISHED',
     } satisfies JobRecord);
 
-    await expect(
-      service.resume('user-a', 'job-1'),
-    ).rejects.toThrow('Only paused jobs can be resumed');
+    await expect(service.resume('user-a', 'job-1')).rejects.toThrow(
+      'Only paused jobs can be resumed',
+    );
 
     expect(prisma.job.update).not.toHaveBeenCalled();
   });
@@ -1356,9 +1355,9 @@ describe('JobsService', () => {
       status: 'DRAFT',
     } satisfies JobRecord);
 
-    await expect(
-      service.close('user-a', 'job-1'),
-    ).rejects.toThrow('Only published or paused jobs can be closed');
+    await expect(service.close('user-a', 'job-1')).rejects.toThrow(
+      'Only published or paused jobs can be closed',
+    );
 
     expect(prisma.job.update).not.toHaveBeenCalled();
   });
@@ -1373,9 +1372,9 @@ describe('JobsService', () => {
       status: 'PUBLISHED',
     } satisfies JobRecord);
 
-    await expect(
-      service.reopen('user-a', 'job-1'),
-    ).rejects.toThrow('Only closed jobs can be reopened');
+    await expect(service.reopen('user-a', 'job-1')).rejects.toThrow(
+      'Only closed jobs can be reopened',
+    );
 
     expect(prisma.job.update).not.toHaveBeenCalled();
   });
@@ -1387,16 +1386,16 @@ describe('JobsService', () => {
 
     prisma.job.findFirst.mockResolvedValue(null);
 
-    await expect(
-      service.pause('user-a', 'job-from-company-b'),
-    ).rejects.toThrow('Job not found');
+    await expect(service.pause('user-a', 'job-from-company-b')).rejects.toThrow(
+      'Job not found',
+    );
 
     expect(prisma.job.update).not.toHaveBeenCalled();
   });
 
   it('should reject an invalid discovery salary range', async () => {
     await expect(
-      service.discover({
+      service.discover('candidate-user', {
         salaryMin: 7000,
         salaryMax: 5000,
       }),
@@ -1410,7 +1409,7 @@ describe('JobsService', () => {
     prisma.job.count.mockResolvedValue(0);
     prisma.$transaction.mockResolvedValue([[], 0]);
 
-    await service.discover({
+    await service.discover('candidate-user', {
       q: 'TypeScript',
       location: 'Amsterdam',
       workMode: 'REMOTE',
@@ -1534,7 +1533,7 @@ describe('JobsService', () => {
     prisma.job.count.mockResolvedValue(0);
     prisma.$transaction.mockResolvedValue([[], 0]);
 
-    await service.discover({
+    await service.discover('candidate-user', {
       skillIds: [
         '11111111-1111-4111-8111-111111111111',
         '22222222-2222-4222-8222-222222222222',
@@ -1582,7 +1581,7 @@ describe('JobsService', () => {
     prisma.job.count.mockResolvedValue(0);
     prisma.$transaction.mockResolvedValue([[], 0]);
 
-    await service.discover({
+    await service.discover('candidate-user', {
       sort: 'salary',
     });
 
@@ -1608,7 +1607,7 @@ describe('JobsService', () => {
     prisma.job.count.mockResolvedValue(0);
     prisma.$transaction.mockResolvedValue([[], 0]);
 
-    await service.discover({
+    await service.discover('candidate-user', {
       sort: 'title',
     });
 

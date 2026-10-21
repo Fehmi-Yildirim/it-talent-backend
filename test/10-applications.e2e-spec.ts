@@ -96,6 +96,9 @@ interface RecruiterApplicationResponse
         headline?: string | null
         summary?: string | null
         location?: string | null
+        firstName: string
+        lastName: string
+        email: string
     }
 }
 
@@ -110,6 +113,7 @@ describe('10 - Applications (e2e)', () => {
     let adminToken: string
 
     let candidateUserId: string
+    let candidateEmail: string
     let secondCandidateUserId: string
     let recruiterUserId: string
     let secondRecruiterUserId: string
@@ -171,10 +175,12 @@ describe('10 - Applications (e2e)', () => {
                 candidatePassword,
             )
 
+        candidateEmail = `e2e-application-candidate-${timestamp}@example.com`
+
         const candidateUser =
             await prisma.user.create({
                 data: {
-                    email: `e2e-application-candidate-${timestamp}@example.com`,
+                    email: candidateEmail,
                     passwordHash:
                         candidatePasswordHash,
                     firstName: 'Test',
@@ -192,6 +198,9 @@ describe('10 - Applications (e2e)', () => {
                 data: {
                     userId:
                         candidateUser.id,
+                    headline: 'Senior engineer',
+                    summary: 'Experienced software engineer.',
+                    location: 'Amsterdam',
                 },
             })
 
@@ -1202,6 +1211,17 @@ describe('10 - Applications (e2e)', () => {
             application?.candidate.id,
         ).toBe(candidateId)
 
+        expect(application?.candidate).toMatchObject({
+            headline: 'Senior engineer',
+            summary: 'Experienced software engineer.',
+            location: 'Amsterdam',
+            firstName: 'Test',
+            lastName: 'Candidate',
+            email: candidateEmail,
+        })
+        expect(application?.candidate).not.toHaveProperty('cvPath')
+        expect(application?.candidate).not.toHaveProperty('cvExpiresAt')
+
         expect(
             application?.cvUrl,
         ).toBe(
@@ -1249,8 +1269,17 @@ describe('10 - Applications (e2e)', () => {
             },
             candidate: {
                 id: candidateId,
+                headline: 'Senior engineer',
+                summary: 'Experienced software engineer.',
+                location: 'Amsterdam',
+                firstName: 'Test',
+                lastName: 'Candidate',
+                email: candidateEmail,
             },
         })
+
+        expect(response.body.candidate).not.toHaveProperty('cvPath')
+        expect(response.body.candidate).not.toHaveProperty('cvExpiresAt')
 
         expect(
             response.body.cvUrl,

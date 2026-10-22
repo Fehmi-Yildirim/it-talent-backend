@@ -71,8 +71,13 @@ async function bootstrap() {
         box-sizing: border-box;
       }
 
+      .swagger-login-buttons {
+        display: flex;
+        gap: 8px;
+      }
+
       .swagger-login button {
-        width: 220px;
+        flex: 1;
         padding: 8px;
         border: 0;
         border-radius: 4px;
@@ -85,9 +90,23 @@ async function bootstrap() {
         background: #357abd;
       }
 
+      .swagger-login #swagger-logout-button {
+        background: #d9534f;
+      }
+
+      .swagger-login #swagger-logout-button:hover {
+        background: #c9302c;
+      }
+
+      .swagger-login button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
       .swagger-login-status {
         margin-top: 8px;
         font-size: 13px;
+        overflow-wrap: anywhere;
       }
     `,
 
@@ -108,105 +127,164 @@ async function bootstrap() {
               id="swagger-login-email"
               type="email"
               placeholder="Email"
-              value="admin@example.com"
+              autocomplete="username"
             />
 
             <input
               id="swagger-login-password"
               type="password"
               placeholder="Password"
-              value="Admin12345!"
+              autocomplete="current-password"
             />
 
-            <button id="swagger-login-button">
-              Login
-            </button>
+            <div class="swagger-login-buttons">
+              <button id="swagger-login-button" type="button">
+                Login
+              </button>
+
+              <button
+                id="swagger-logout-button"
+                type="button"
+                hidden
+              >
+                Logout
+              </button>
+            </div>
 
             <div
               id="swagger-login-status"
               class="swagger-login-status"
+              role="status"
+              aria-live="polite"
             ></div>
           \`;
 
           document.body.appendChild(container);
 
-          document
-            .getElementById('swagger-login-button')
-            .addEventListener('click', async () => {
-              const email = document
-                .getElementById('swagger-login-email')
-                .value;
+          const emailInput = document.getElementById(
+            'swagger-login-email',
+          );
 
-              const password = document
-                .getElementById('swagger-login-password')
-                .value;
+          const passwordInput = document.getElementById(
+            'swagger-login-password',
+          );
 
-              const status = document.getElementById(
-                'swagger-login-status',
+          const loginButton = document.getElementById(
+            'swagger-login-button',
+          );
+
+          const logoutButton = document.getElementById(
+            'swagger-logout-button',
+          );
+
+          const status = document.getElementById(
+            'swagger-login-status',
+          );
+
+          // Initially, only Login is visible.
+          loginButton.hidden = false;
+          logoutButton.hidden = true;
+
+          loginButton.addEventListener('click', async () => {
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+
+            if (!email || !password) {
+              status.textContent =
+                'Enter your email and password.';
+              status.style.color = 'red';
+              return;
+            }
+
+            loginButton.disabled = true;
+            status.textContent = 'Logging in...';
+            status.style.color = '';
+
+            try {
+              const response = await fetch(
+                '/api/v1/auth/login',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                  },
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    email,
+                    password,
+                  }),
+                },
               );
 
-              status.textContent = 'Logging in...';
+              const data = await response.json();
 
-              try {
-                const response = await fetch(
-                  '/api/v1/auth/login',
-                  {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Accept': 'application/json',
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                      email,
-                      password,
-                    }),
-                  },
+              if (!response.ok) {
+                throw new Error(
+                  data.message || 'Login failed',
                 );
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                  throw new Error(
-                    data.message || 'Login failed',
-                  );
-                }
-
-                if (!data.accessToken) {
-                  throw new Error(
-                    'No accessToken returned by login endpoint',
-                  );
-                }
-
-                // Swagger UI API
-                const ui = window.ui;
-
-                if (!ui) {
-                  throw new Error(
-                    'Swagger UI is not available',
-                  );
-                }
-
-                ui.preauthorizeApiKey(
-                  'access-token',
-                  data.accessToken,
-                );
-
-                status.textContent = '✓ Logged in';
-                status.style.color = 'green';
-
-              } catch (error) {
-                console.error(error);
-
-                status.textContent =
-                  '✗ ' + (error.message || 'Login failed');
-
-                status.style.color = 'red';
               }
-            });
+
+              if (!data.accessToken) {
+                throw new Error(
+                  'No accessToken returned by login endpoint',
+                );
+              }
+
+              const ui = window.ui;
+
+              if (!ui) {
+                throw new Error(
+                  'Swagger UI is not available',
+                );
+              }
+
+              ui.preauthorizeApiKey(
+                'access-token',
+                data.accessToken,
+              );
+
+              // Show Logout only after successful login.
+              loginButton.hidden = true;
+              logoutButton.hidden = false;
+
+              passwordInput.value = '';
+
+              status.textContent = '✓ Logged in';
+              status.style.color = 'green';
+            } catch (error) {
+              console.error(error);
+
+              status.textContent =
+                '✗ ' +
+                (error.message || 'Login failed');
+
+              status.style.color = 'red';
+            } finally {
+              loginButton.disabled = false;
+            }
+          });
+
+          logoutButton.addEventListener('click', () => {
+            const ui = window.ui;
+
+            if (ui) {
+              ui.authActions.logout(['access-token']);
+            }
+
+            emailInput.value = '';
+            passwordInput.value = '';
+
+            // Hide Logout and show Login again.
+            logoutButton.hidden = true;
+            loginButton.hidden = false;
+
+            status.textContent = 'Logged out';
+            status.style.color = 'green';
+          });
         }
 
-        // Swagger UI needs a moment to initialize.
+        // Wait until Swagger UI is initialized.
         const interval = setInterval(() => {
           if (window.ui) {
             clearInterval(interval);

@@ -12,6 +12,39 @@ async function main() {
         throw new Error('DATABASE_URL is not defined');
     }
 
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    const candidateEmail = process.env.E2E_CANDIDATE_EMAIL;
+    const candidatePassword = process.env.E2E_CANDIDATE_PASSWORD;
+
+    const recruiterEmail = process.env.E2E_RECRUITER_EMAIL;
+    const recruiterPassword = process.env.E2E_RECRUITER_PASSWORD;
+
+    if (!adminEmail || !adminPassword) {
+        throw new Error(
+            'ADMIN_EMAIL and ADMIN_PASSWORD must be defined',
+        );
+    }
+
+    if (!candidateEmail || !candidatePassword) {
+        throw new Error(
+            'E2E_CANDIDATE_EMAIL and E2E_CANDIDATE_PASSWORD must be defined',
+        );
+    }
+
+    if (!recruiterEmail || !recruiterPassword) {
+        throw new Error(
+            'E2E_RECRUITER_EMAIL and E2E_RECRUITER_PASSWORD must be defined',
+        );
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+            'This script is intended for development and test environments only',
+        );
+    }
+
     const adapter = new PrismaPg({
         connectionString,
     });
@@ -22,9 +55,6 @@ async function main() {
         // ------------------------------------------------------------
         // Bootstrap ADMIN
         // ------------------------------------------------------------
-
-        const adminEmail = 'admin@example.com';
-        const adminPassword = 'Admin12345!';
 
         const existingAdmin = await prisma.user.findFirst({
             where: {
@@ -41,15 +71,14 @@ async function main() {
                 `ADMIN already exists: ${existingAdmin.email} (${existingAdmin.id})`,
             );
         } else {
-            const existingAdminEmail =
-                await prisma.user.findUnique({
-                    where: {
-                        email: adminEmail,
-                    },
-                    select: {
-                        id: true,
-                    },
-                });
+            const existingAdminEmail = await prisma.user.findUnique({
+                where: {
+                    email: adminEmail,
+                },
+                select: {
+                    id: true,
+                },
+            });
 
             if (existingAdminEmail) {
                 throw new Error(
@@ -57,61 +86,15 @@ async function main() {
                 );
             }
 
-            const passwordHash =
-                await argon2.hash(adminPassword);
+            const passwordHash = await argon2.hash(adminPassword);
 
-            const admin =
-                await prisma.user.create({
-                    data: {
-                        email: adminEmail,
-                        passwordHash,
-                        firstName: 'Admin',
-                        lastName: 'User',
-                        role: 'ADMIN',
-                        status: 'ACTIVE',
-                    },
-                    select: {
-                        id: true,
-                        email: true,
-                        firstName: true,
-                        lastName: true,
-                        role: true,
-                        status: true,
-                    },
-                });
-
-            console.log('Bootstrap ADMIN created:');
-            console.log(admin);
-        }
-
-        // ------------------------------------------------------------
-        // E2E CANDIDATE
-        // ------------------------------------------------------------
-
-        const candidateEmail = 'test2@example.com';
-        const candidatePassword = 'Test12345!';
-
-        const candidatePasswordHash =
-            await argon2.hash(candidatePassword);
-
-        const candidate =
-            await prisma.user.upsert({
-                where: {
-                    email: candidateEmail,
-                },
-                update: {
-                    passwordHash: candidatePasswordHash,
-                    firstName: 'Candidate',
+            const admin = await prisma.user.create({
+                data: {
+                    email: adminEmail,
+                    passwordHash,
+                    firstName: 'Admin',
                     lastName: 'User',
-                    role: 'CANDIDATE',
-                    status: 'ACTIVE',
-                },
-                create: {
-                    email: candidateEmail,
-                    passwordHash: candidatePasswordHash,
-                    firstName: 'Candidate',
-                    lastName: 'User',
-                    role: 'CANDIDATE',
+                    role: 'ADMIN',
                     status: 'ACTIVE',
                 },
                 select: {
@@ -124,10 +107,48 @@ async function main() {
                 },
             });
 
+            console.log('Bootstrap ADMIN created:');
+            console.log(admin);
+        }
+
+        // ------------------------------------------------------------
+        // E2E CANDIDATE
+        // ------------------------------------------------------------
+
+        const candidatePasswordHash =
+            await argon2.hash(candidatePassword);
+
+        const candidate = await prisma.user.upsert({
+            where: {
+                email: candidateEmail,
+            },
+            update: {
+                passwordHash: candidatePasswordHash,
+                firstName: 'Candidate',
+                lastName: 'User',
+                role: 'CANDIDATE',
+                status: 'ACTIVE',
+            },
+            create: {
+                email: candidateEmail,
+                passwordHash: candidatePasswordHash,
+                firstName: 'Candidate',
+                lastName: 'User',
+                role: 'CANDIDATE',
+                status: 'ACTIVE',
+            },
+            select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+                status: true,
+            },
+        });
+
         console.log('E2E CANDIDATE ready:');
         console.log(candidate);
-        console.log(`Email: ${candidateEmail}`);
-        console.log(`Password: ${candidatePassword}`);
 
         // ------------------------------------------------------------
         // Candidate profile
@@ -167,44 +188,38 @@ async function main() {
         // E2E RECRUITER
         // ------------------------------------------------------------
 
-        const recruiterEmail = 'recruiter@example.com';
-        const recruiterPassword = 'Recruiter12345!';
-
         const recruiterPasswordHash =
             await argon2.hash(recruiterPassword);
 
-        const recruiterUser =
-            await prisma.user.upsert({
-                where: {
-                    email: recruiterEmail,
-                },
-                update: {
-                    passwordHash: recruiterPasswordHash,
-                    firstName: 'Recruiter',
-                    lastName: 'User',
-                    role: 'RECRUITER',
-                    status: 'ACTIVE',
-                },
-                create: {
-                    email: recruiterEmail,
-                    passwordHash: recruiterPasswordHash,
-                    firstName: 'Recruiter',
-                    lastName: 'User',
-                    role: 'RECRUITER',
-                    status: 'ACTIVE',
-                },
-                select: {
-                    id: true,
-                    email: true,
-                    role: true,
-                    status: true,
-                },
-            });
+        const recruiterUser = await prisma.user.upsert({
+            where: {
+                email: recruiterEmail,
+            },
+            update: {
+                passwordHash: recruiterPasswordHash,
+                firstName: 'Recruiter',
+                lastName: 'User',
+                role: 'RECRUITER',
+                status: 'ACTIVE',
+            },
+            create: {
+                email: recruiterEmail,
+                passwordHash: recruiterPasswordHash,
+                firstName: 'Recruiter',
+                lastName: 'User',
+                role: 'RECRUITER',
+                status: 'ACTIVE',
+            },
+            select: {
+                id: true,
+                email: true,
+                role: true,
+                status: true,
+            },
+        });
 
         console.log('E2E RECRUITER ready:');
         console.log(recruiterUser);
-        console.log(`Email: ${recruiterEmail}`);
-        console.log(`Password: ${recruiterPassword}`);
 
         // ------------------------------------------------------------
         // E2E COMPANY
@@ -273,6 +288,9 @@ async function main() {
 }
 
 main().catch((error) => {
+    console.error(
+        'Failed to initialize development/test accounts.',
+    );
     console.error(error);
-    process.exit(1);
+    process.exitCode = 1;
 });

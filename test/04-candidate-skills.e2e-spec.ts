@@ -23,8 +23,8 @@ describe('04 - Candidate Skills (e2e)', () => {
     const loginResponse = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({
-        email: 'test2@example.com',
-        password: 'Test12345!',
+        email: 'candidate@example.com',
+        password: 'Candidate12345!',
       })
       .expect(201);
 

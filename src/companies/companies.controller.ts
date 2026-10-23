@@ -15,9 +15,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UserRole } from '../../generated/prisma/enums';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompaniesService } from './companies.service';
@@ -29,9 +31,10 @@ type AuthenticatedRequest = Request & {
 @ApiTags('Companies')
 @ApiBearerAuth('access-token')
 @Controller('companies')
-@UseGuards(JwtAuthGuard)
+@Roles(UserRole.RECRUITER)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class CompaniesController {
-  constructor(private readonly companiesService: CompaniesService) {}
+  constructor(private readonly companiesService: CompaniesService) { }
 
   @Post()
   @ApiOperation({

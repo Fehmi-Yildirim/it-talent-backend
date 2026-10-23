@@ -184,7 +184,7 @@ describe('UsersController', () => {
   });
 
   describe('remove', () => {
-    it('passes id and authenticated user id to the service', async () => {
+    it('passes id, authenticated user id and role to the service', async () => {
       const req = {
         user: {
           id: 'admin-1',
@@ -205,7 +205,11 @@ describe('UsersController', () => {
 
       await expect(controller.remove('user-1', req)).resolves.toEqual(result);
 
-      expect(usersService.remove).toHaveBeenCalledWith('user-1', 'admin-1');
+      expect(usersService.remove).toHaveBeenCalledWith(
+        'user-1',
+        'admin-1',
+        UserRole.ADMIN,
+      );
     });
   });
 });

@@ -237,8 +237,23 @@ export class UsersService {
     });
   }
 
-  async remove(id: string, _requestingUserId: string) {
-    const user = await this.findOne(id, _requestingUserId, UserRole.ADMIN);
+
+  async remove(
+    id: string,
+    requestingUserId: string,
+    requestingUserRole: UserRole,
+  ) {
+    if (requestingUserRole !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        'Only administrators can delete users',
+      );
+    }
+
+    const user = await this.findOne(
+      id,
+      requestingUserId,
+      requestingUserRole,
+    );
 
     // Never allow the last ADMIN to be deleted.
     if (user.role === UserRole.ADMIN) {
@@ -269,4 +284,5 @@ export class UsersService {
       },
     });
   }
+
 }

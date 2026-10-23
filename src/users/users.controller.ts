@@ -83,6 +83,10 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Delete(':id')
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.usersService.remove(id, req.user.id);
+    return this.usersService.remove(
+      id,
+      req.user.id,
+      req.user.role,
+    );
   }
 }

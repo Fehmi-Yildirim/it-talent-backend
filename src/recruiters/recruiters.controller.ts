@@ -7,9 +7,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UserRole } from '../../generated/prisma/enums';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { UpdateRecruiterDto } from './dto/update-recruiter.dto';
 import { RecruitersService } from './recruiters.service';
 
@@ -20,9 +22,10 @@ type AuthenticatedRequest = Request & {
 @ApiTags('Recruiters')
 @ApiBearerAuth('access-token')
 @Controller('recruiters')
-@UseGuards(JwtAuthGuard)
+@Roles(UserRole.RECRUITER)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class RecruitersController {
-  constructor(private readonly recruitersService: RecruitersService) {}
+  constructor(private readonly recruitersService: RecruitersService) { }
 
   @Get('me')
   @ApiOperation({

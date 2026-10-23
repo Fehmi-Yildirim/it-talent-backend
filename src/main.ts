@@ -9,8 +9,12 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
+  const corsOrigin = process.env.CORS_ORIGIN;
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
+    origin: corsOrigin
+      ? corsOrigin.split(',').map((origin) => origin.trim())
+      : 'http://localhost:3000',
     credentials: true,
   });
 
@@ -36,18 +40,19 @@ async function bootstrap() {
     )
     .build();
 
-  const document = SwaggerModule.createDocument(app, config, {
-    operationIdFactory: (controllerKey, methodKey) =>
-      `${controllerKey}-${methodKey}`,
-  });
+  if (process.env.NODE_ENV !== 'production') {
+    const document = SwaggerModule.createDocument(app, config, {
+      operationIdFactory: (controllerKey, methodKey) =>
+        `${controllerKey}-${methodKey}`,
+    });
 
-  SwaggerModule.setup('api/docs', app, document, {
-    swaggerOptions: {
-      tagsSorter: 'alpha',
-      operationsSorter: 'alpha',
-    },
+    SwaggerModule.setup('api/docs', app, document, {
+      swaggerOptions: {
+        tagsSorter: 'alpha',
+        operationsSorter: 'alpha',
+      },
 
-    customCss: `
+      customCss: `
       .swagger-login {
         position: fixed;
         top: 10px;
@@ -69,6 +74,10 @@ async function bootstrap() {
         border: 1px solid #ccc;
         border-radius: 4px;
         box-sizing: border-box;
+      }
+
+      .swagger-login input[hidden] {
+        display: none;
       }
 
       .swagger-login-buttons {
@@ -110,7 +119,7 @@ async function bootstrap() {
       }
     `,
 
-    customJsStr: `
+      customJsStr: `
       (() => {
         function createLoginForm() {
           if (document.querySelector('.swagger-login')) {
@@ -181,7 +190,7 @@ async function bootstrap() {
             'swagger-login-status',
           );
 
-          // Initially, only Login is visible.
+          // Initially, show the login fields and Login button.
           loginButton.hidden = false;
           logoutButton.hidden = true;
 
@@ -190,6 +199,7 @@ async function bootstrap() {
             const password = passwordInput.value;
 
             if (!email || !password) {
+              status.hidden = false;
               status.textContent =
                 'Enter your email and password.';
               status.style.color = 'red';
@@ -197,6 +207,7 @@ async function bootstrap() {
             }
 
             loginButton.disabled = true;
+            status.hidden = false;
             status.textContent = 'Logging in...';
             status.style.color = '';
 
@@ -244,20 +255,23 @@ async function bootstrap() {
                 data.accessToken,
               );
 
-              // Show Logout only after successful login.
+              // Keep the title visible and show only Logout.
+              emailInput.hidden = true;
+              passwordInput.hidden = true;
               loginButton.hidden = true;
               logoutButton.hidden = false;
+              status.hidden = true;
 
               passwordInput.value = '';
-
-              status.textContent = '✓ Logged in';
-              status.style.color = 'green';
             } catch (error) {
               console.error(error);
 
+              status.hidden = false;
               status.textContent =
                 '✗ ' +
-                (error.message || 'Login failed');
+                (error instanceof Error
+                  ? error.message
+                  : 'Login failed');
 
               status.style.color = 'red';
             } finally {
@@ -275,10 +289,13 @@ async function bootstrap() {
             emailInput.value = '';
             passwordInput.value = '';
 
-            // Hide Logout and show Login again.
+            // Show the login fields again after logout.
+            emailInput.hidden = false;
+            passwordInput.hidden = false;
             logoutButton.hidden = true;
             loginButton.hidden = false;
 
+            status.hidden = false;
             status.textContent = 'Logged out';
             status.style.color = 'green';
           });
@@ -297,9 +314,10 @@ async function bootstrap() {
         }, 10000);
       })();
     `,
-  });
+    });
+  }
 
-  await app.listen(process.env.PORT ?? 3000);
+  await app.listen(Number(process.env.PORT ?? 3000));
 }
 
 void bootstrap();

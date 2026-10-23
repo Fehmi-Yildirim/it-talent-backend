@@ -1,30 +1,30 @@
-import { Module } from '@nestjs/common'
-import { ConfigModule } from '@nestjs/config'
-import { ScheduleModule } from '@nestjs/schedule'
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 
-import { AppController } from './app.controller'
-import { AppService } from './app.service'
-import { AuthModule } from './auth/auth.module'
-import { DatabaseModule } from './database/database.module'
-import { HealthModule } from './health/health.module'
-import { SkillsModule } from './skills/skills.module'
-import { UsersModule } from './users/users.module'
-import { CompaniesModule } from './companies/companies.module'
-import { RecruitersModule } from './recruiters/recruiters.module'
-import { JobsModule } from './jobs/jobs.module'
-import { CandidatesModule } from './candidates/candidates.module'
-import { ApplicationsModule } from './applications/applications.module'
-import { DashboardModule } from './dashboard/dashboard.module'
-import { SettingsModule } from './settings/settings.module'
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { ApplicationsModule } from './applications/applications.module';
+import { AuthModule } from './auth/auth.module';
+import { CandidatesModule } from './candidates/candidates.module';
+import { CompaniesModule } from './companies/companies.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { DatabaseModule } from './database/database.module';
+import { validateEnvironment } from './config/env.validation';
+import { HealthModule } from './health/health.module';
+import { JobsModule } from './jobs/jobs.module';
+import { RecruitersModule } from './recruiters/recruiters.module';
+import { SettingsModule } from './settings/settings.module';
+import { SkillsModule } from './skills/skills.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateEnvironment,
     }),
-
     ScheduleModule.forRoot(),
-
     DatabaseModule,
     HealthModule,
     UsersModule,

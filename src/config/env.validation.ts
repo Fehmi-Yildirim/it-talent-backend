@@ -68,6 +68,24 @@ function validateCorsOrigin(value: string, production: boolean): void {
     }
 }
 
+function validateCvMaxFileSize(config: EnvironmentVariables): number {
+    const value = config.CV_MAX_FILE_SIZE_BYTES;
+
+    if (value === undefined) {
+        return 10 * 1024 * 1024;
+    }
+
+    const size = Number(value);
+
+    if (!Number.isSafeInteger(size) || size <= 0) {
+        throw new Error(
+            'CV_MAX_FILE_SIZE_BYTES must be a positive safe integer',
+        );
+    }
+
+    return size;
+}
+
 export function validateEnvironment(
     config: EnvironmentVariables,
 ): EnvironmentVariables {
@@ -121,8 +139,11 @@ export function validateEnvironment(
         validateCorsOrigin(corsOrigin, production);
     }
 
+    const cvMaxFileSizeBytes = validateCvMaxFileSize(config);
+
     return {
         ...config,
         NODE_ENV: nodeEnv,
+        CV_MAX_FILE_SIZE_BYTES: cvMaxFileSizeBytes,
     };
 }

@@ -106,4 +106,35 @@ describe('validateEnvironment', () => {
             }),
         ).not.toThrow();
     });
+
+    it('uses the default CV upload size when not configured', () => {
+        expect(validateEnvironment(validConfig)).toMatchObject({
+            CV_MAX_FILE_SIZE_BYTES: 10 * 1024 * 1024,
+        });
+    });
+
+    it('accepts a configured CV upload size', () => {
+        expect(
+            validateEnvironment({
+                ...validConfig,
+                CV_MAX_FILE_SIZE_BYTES: '5242880',
+            }),
+        ).toMatchObject({
+            CV_MAX_FILE_SIZE_BYTES: 5 * 1024 * 1024,
+        });
+    });
+
+    it.each(['0', '-1', 'abc', '1.5', '9007199254740992'])(
+        'rejects invalid CV upload size: %s',
+        (value) => {
+            expect(() =>
+                validateEnvironment({
+                    ...validConfig,
+                    CV_MAX_FILE_SIZE_BYTES: value,
+                }),
+            ).toThrow(
+                'CV_MAX_FILE_SIZE_BYTES must be a positive safe integer',
+            );
+        },
+    );
 });

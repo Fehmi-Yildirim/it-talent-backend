@@ -242,6 +242,11 @@ describe('07 - Candidate Profile (e2e)', () => {
 
     expect(response.headers['content-type']).toMatch(/application\/pdf/);
     expect(response.headers['content-disposition']).toContain('candidate-cv.pdf');
+    expect(response.headers['cache-control']).toBe(
+      'private, no-store, max-age=0',
+    );
+    expect(response.headers['pragma']).toBe('no-cache');
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(Buffer.from(response.body)).toEqual(firstCvContent);
   });
 
@@ -322,6 +327,23 @@ describe('07 - Candidate Profile (e2e)', () => {
       })
       .expect(400);
   });
+
+  it('should reject CV files that exceed the configured upload limit', async () => {
+    const oversizedCv = Buffer.concat([
+      Buffer.from('%PDF-1.7\n'),
+      Buffer.alloc(10 * 1024 * 1024 + 1, 0x41),
+    ]);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/candidates/me/cv')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .attach('cv', oversizedCv, {
+        filename: 'oversized-cv.pdf',
+        contentType: 'application/pdf',
+      })
+      .expect(413);
+  });
+
 
   it('should reject access to an expired CV', async () => {
     const expiredAt = new Date(Date.now() - 60 * 1000);

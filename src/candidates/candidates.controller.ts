@@ -13,7 +13,6 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common'
-import { FileInterceptor } from '@nestjs/platform-express'
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -24,6 +23,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger'
 import type { Request, Response } from 'express'
+import * as yauzl from 'yauzl'
 import { UserRole } from '../../generated/prisma/enums'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
@@ -33,9 +33,88 @@ import { CreateCandidateDto } from './dto/create-candidate.dto'
 import { UpdateCandidateDto } from './dto/update-candidate.dto'
 import { UploadedCandidateCv } from './uploaded-cv.interface'
 import { CandidatesService } from './candidates.service'
+import { CvUploadInterceptor } from './cv-upload.interceptor'
 
 type AuthenticatedRequest = Request & {
   user: Awaited<ReturnType<JwtStrategy['validate']>>
+}
+
+function openZip(buffer: Buffer): Promise<yauzl.ZipFile> {
+  return new Promise((resolve, reject) => {
+    yauzl.fromBuffer(
+      buffer,
+      {
+        lazyEntries: true,
+        validateEntrySizes: true,
+      },
+      (error, zipFile) => {
+        if (error) {
+          reject(error)
+          return
+        }
+
+        if (!zipFile) {
+          reject(new Error('Unable to open ZIP archive'))
+          return
+        }
+
+        resolve(zipFile)
+      },
+    )
+  })
+}
+
+async function isValidDocx(buffer: Buffer): Promise<boolean> {
+  try {
+    const zip = await openZip(buffer)
+
+    return await new Promise<boolean>((resolve) => {
+      const requiredEntries = new Set([
+        '[Content_Types].xml',
+        '_rels/.rels',
+        'word/document.xml',
+      ])
+
+      let entryCount = 0
+      let totalUncompressedSize = 0
+      let finished = false
+
+      const finish = (valid: boolean) => {
+        if (finished) return
+        finished = true
+        zip.close()
+        resolve(valid)
+      }
+
+      zip.on('error', () => finish(false))
+
+      zip.on('entry', (entry: yauzl.Entry) => {
+        entryCount += 1
+        totalUncompressedSize += entry.uncompressedSize
+
+        if (
+          entryCount > 1000 ||
+          totalUncompressedSize > 20 * 1024 * 1024 ||
+          entry.fileName.startsWith('/') ||
+          entry.fileName.split('/').includes('..')
+        ) {
+          finish(false)
+          return
+        }
+
+        requiredEntries.delete(entry.fileName)
+        zip.readEntry()
+      })
+
+      zip.on('end', () => {
+        finish(requiredEntries.size === 0)
+      })
+
+      zip.readEntry()
+    })
+  } catch {
+    return false
+  }
 }
 
 @ApiTags('Candidates')
@@ -96,15 +175,9 @@ export class CandidatesController {
   }
 
   @Post('me/cv')
-  @UseInterceptors(
-    FileInterceptor('cv', {
-      limits: {
-        fileSize: 10 * 1024 * 1024,
-        files: 1,
-      },
-    }),
-  )
-  uploadCv(
+  @UseInterceptors(CvUploadInterceptor())
+
+  async uploadCv(
     @Req() req: AuthenticatedRequest,
     @UploadedFile() file?: UploadedCandidateCv,
   ) {
@@ -114,10 +187,13 @@ export class CandidatesController {
       )
     }
 
-    const extension = file.originalname
-      .split('.')
-      .pop()
-      ?.toLowerCase()
+    const originalName = file.originalname
+    const lastDotIndex = originalName.lastIndexOf('.')
+
+    const extension =
+      lastDotIndex > 0 && lastDotIndex < originalName.length - 1
+        ? originalName.slice(lastDotIndex + 1).toLowerCase()
+        : undefined
 
     const allowedTypes: Record<string, string[]> = {
       pdf: ['application/pdf'],
@@ -133,8 +209,7 @@ export class CandidatesController {
       (extension === 'doc' &&
         file.buffer.subarray(0, 8).toString('hex') ===
         'd0cf11e0a1b11ae1') ||
-      (extension === 'docx' &&
-        file.buffer.subarray(0, 2).toString() === 'PK')
+      (extension === 'docx' && (await isValidDocx(file.buffer)))
 
     if (
       !extension ||
@@ -163,12 +238,17 @@ export class CandidatesController {
       req.user.id,
     )
 
+
     response.set({
       'Content-Type': cv.mimeType,
-      'Content-Disposition': `inline; filename="${encodeURIComponent(
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(
         cv.originalName,
       )}"`,
+      'Cache-Control': 'private, no-store, max-age=0',
+      'Pragma': 'no-cache',
+      'X-Content-Type-Options': 'nosniff',
     })
+
 
     return new StreamableFile(cv.stream)
   }

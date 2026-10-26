@@ -61,10 +61,14 @@ export class ApplicationsController {
 
         response.set({
             'Content-Type': cv.mimeType,
-            'Content-Disposition': `inline; filename="${encodeURIComponent(
+            'Content-Disposition': `attachment; filename="${encodeURIComponent(
                 cv.originalName,
             )}"`,
+            'Cache-Control': 'private, no-store, max-age=0',
+            'Pragma': 'no-cache',
+            'X-Content-Type-Options': 'nosniff',
         })
+
 
         return new StreamableFile(
             cv.stream,

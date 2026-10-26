@@ -1024,30 +1024,25 @@ describe('09 - Job Discovery (e2e)', () => {
 
     expect(body.items.length).toBeGreaterThanOrEqual(2);
 
-    const titles = body.items.map((job) => job.title);
+    // Let PostgreSQL apply its configured collation when checking the order;
+    // JavaScript string comparisons do not necessarily match database order.
+    const expectedOrder = await prisma.job.findMany({
+      where: {
+        id: {
+          in: body.items.map((job) => job.id),
+        },
+      },
+      orderBy: {
+        title: 'asc',
+      },
+      select: {
+        id: true,
+      },
+    });
 
-    const expectedOrder = [
-      'Frontend Developer',
-      'Frontend Developer Test',
-      'Front End Engineer',
-      'React / Laravel developer (Full-stack)',
-      'Senior Backend Developer',
-      'Senior Technical Specialist - Java, Microservices, React.js',
-      'Web Developer - Join us at Hillebrand Gori a company of DHL Global Forwarding',
-    ];
-
-    // Other E2E suites may leave published jobs in a shared database. Check
-    // that this suite's known titles retain their relative sort order while
-    // allowing unrelated rows (including duplicate titles) in the result.
-    let nextExpectedIndex = 0;
-    for (const title of titles) {
-      if (title === expectedOrder[nextExpectedIndex]) {
-        nextExpectedIndex += 1;
-      }
-      if (nextExpectedIndex === expectedOrder.length) break;
-    }
-
-    expect(nextExpectedIndex).toBe(expectedOrder.length);
+    expect(body.items.map((job) => job.id)).toEqual(
+      expectedOrder.map((job) => job.id),
+    );
   });
 
   it('34 - should return the second page', async () => {

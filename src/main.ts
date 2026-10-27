@@ -3,18 +3,17 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
+import { getCorsOrigins } from './config/cors.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix('api/v1');
 
-  const corsOrigin = process.env.CORS_ORIGIN;
+  const corsOrigins = getCorsOrigins();
 
   app.enableCors({
-    origin: corsOrigin
-      ? corsOrigin.split(',').map((origin) => origin.trim())
-      : 'http://localhost:3000',
+    origin: corsOrigins,
     credentials: true,
   });
 

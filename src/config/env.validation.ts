@@ -16,6 +16,28 @@ function requireNonEmptyString(
     return value.trim();
 }
 
+
+function readPositiveInteger(
+    config: EnvironmentVariables,
+    key: string,
+    defaultValue: number,
+): number {
+    const value = config[key];
+
+    if (value === undefined) {
+        return defaultValue;
+    }
+
+    const parsed = Number(value);
+
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+        throw new Error(`${key} must be a positive safe integer`);
+    }
+
+    return parsed;
+}
+
+
 function validateDatabaseUrl(value: string): void {
     let parsed: URL;
 
@@ -141,9 +163,34 @@ export function validateEnvironment(
 
     const cvMaxFileSizeBytes = validateCvMaxFileSize(config);
 
+    const authLoginTtlMs = readPositiveInteger(
+        config,
+        'AUTH_LOGIN_TTL_MS',
+        60_000,
+    );
+    const authLoginLimit = readPositiveInteger(
+        config,
+        'AUTH_LOGIN_LIMIT',
+        5,
+    );
+    const authRegisterTtlMs = readPositiveInteger(
+        config,
+        'AUTH_REGISTER_TTL_MS',
+        60_000,
+    );
+    const authRegisterLimit = readPositiveInteger(
+        config,
+        'AUTH_REGISTER_LIMIT',
+        3,
+    );
+
     return {
         ...config,
         NODE_ENV: nodeEnv,
         CV_MAX_FILE_SIZE_BYTES: cvMaxFileSizeBytes,
+        AUTH_LOGIN_TTL_MS: authLoginTtlMs,
+        AUTH_LOGIN_LIMIT: authLoginLimit,
+        AUTH_REGISTER_TTL_MS: authRegisterTtlMs,
+        AUTH_REGISTER_LIMIT: authRegisterLimit,
     };
 }

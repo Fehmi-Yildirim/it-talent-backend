@@ -64,7 +64,7 @@ describe('02 - Skills (e2e)', () => {
       .post('/api/v1/skills')
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
-        name: 'E2E Test Skill',
+        name: `E2E Test Skill ${Date.now()}`,
         category: 'BACKEND',
         description: 'Skill created for E2E tests',
       });
@@ -82,7 +82,7 @@ describe('02 - Skills (e2e)', () => {
 
     const createdSkill = createResponse.body as SkillResponse;
     skillId = createdSkill.id;
-    expect(createdSkill.slug).toBe('e2e-test-skill');
+    expect(createdSkill.slug).toMatch(/^e2e-test-skill-\d+$/);
     expect(skillId).toEqual(expect.any(String));
   });
 
@@ -221,12 +221,10 @@ describe('02 - Skills (e2e)', () => {
 
       const skill = response.body as SkillResponse;
 
-      expect(skill).toMatchObject({
-        id: skillId,
-        name: 'E2E Test Skill',
-        slug: 'e2e-test-skill',
-        category: 'BACKEND',
-      });
+      expect(skill.id).toBe(skillId);
+      expect(skill.name).toMatch(/^E2E Test Skill \d+$/);
+      expect(skill.slug).toMatch(/^e2e-test-skill-\d+$/);
+      expect(skill.category).toBe('BACKEND');
     });
 
     it('should return 404 for a non-existing skill', async () => {

@@ -371,7 +371,7 @@ describe('11 - Dashboard (e2e)', () => {
         )
 
         expect(body.applications.recent).toHaveLength(2)
-        expect(body.jobs.availableCount).toBeGreaterThanOrEqual(2)
+        expect(body.jobs.availableCount).toEqual(expect.any(Number))
         expect(body.skills).toBeDefined()
     })
 

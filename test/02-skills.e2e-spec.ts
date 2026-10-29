@@ -198,7 +198,7 @@ describe('02 - Skills (e2e)', () => {
         .post('/api/v1/skills')
         .set('Authorization', `Bearer ${adminAccessToken}`)
         .send({
-          name: 'E2E Test Skill',
+          name: 'React',
           category: 'BACKEND',
           description: 'Duplicate generated slug',
         })

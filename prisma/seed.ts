@@ -475,8 +475,8 @@ async function main() {
         // E2E CANDIDATE
         // ------------------------------------------------------------
 
-        const candidateEmail = 'test2@example.com';
-        const candidatePassword = 'Test12345!';
+        const candidateEmail = 'candidate@example.com';
+        const candidatePassword = 'Candidate12345!';
 
         const candidatePasswordHash =
             await argon2.hash(candidatePassword);

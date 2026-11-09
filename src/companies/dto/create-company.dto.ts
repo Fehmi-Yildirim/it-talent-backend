@@ -1,5 +1,4 @@
 import {
-  IsOptional,
   IsString,
   IsUrl,
   MaxLength,
@@ -17,13 +16,12 @@ export class CreateCompanyDto {
   @MaxLength(255)
   description: string;
 
-  @IsOptional()
+  @IsString()
   @IsUrl()
   @MaxLength(255)
-  website?: string;
+  website: string;
 
-  @IsOptional()
   @IsString()
   @MaxLength(255)
-  location?: string;
+  location: string;
 }

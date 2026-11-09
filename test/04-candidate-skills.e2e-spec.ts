@@ -32,11 +32,9 @@ describe('04 - Candidate Skills (e2e)', () => {
 
     expect(accessToken).toEqual(expect.any(String));
 
+
     /*
-     * Get an existing global Skill.
-     *
-     * Important:
-     * skillId identifies the global Skill resource.
+     * Get existing global Skills.
      */
     const skillsResponse = await request(app.getHttpServer())
       .get('/api/v1/skills')
@@ -46,207 +44,231 @@ describe('04 - Candidate Skills (e2e)', () => {
     expect(Array.isArray(skillsResponse.body)).toBe(true);
     expect(skillsResponse.body.length).toBeGreaterThan(0);
 
-    skillId = skillsResponse.body[0].id;
+    /*
+     * Get skills already assigned to this candidate.
+     */
+    const candidateSkillsResponse = await request(app.getHttpServer())
+      .get('/api/v1/candidates/me/skills')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(Array.isArray(candidateSkillsResponse.body)).toBe(true);
+
+    const assignedSkillIds = candidateSkillsResponse.body.map(
+      (item: { skillId: string }) => item.skillId,
+    );
+
+    /*
+     * Select a global Skill that is not yet assigned.
+     */
+    const availableSkill = skillsResponse.body.find(
+      (skill: { id: string }) => !assignedSkillIds.includes(skill.id),
+    );
+
+    expect(availableSkill).toBeDefined();
+
+    skillId = availableSkill.id;
 
     expect(skillId).toEqual(expect.any(String));
   });
 
-  it('should allow a candidate to add a skill', async () => {
-    const response = await request(app.getHttpServer())
-      .post('/api/v1/candidates/me/skills')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({
+
+    it('should allow a candidate to add a skill', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/candidates/me/skills')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          skillId,
+          proficiencyLevel: 4,
+          yearsOfExperience: 3,
+        })
+        .expect(201);
+
+      expect(response.body).toMatchObject({
         skillId,
         proficiencyLevel: 4,
-        yearsOfExperience: 3,
-      })
-      .expect(201);
+        yearsOfExperience: '3',
+        source: 'SELF_REPORTED',
+      });
 
-    expect(response.body).toMatchObject({
-      skillId,
-      proficiencyLevel: 4,
-      yearsOfExperience: '3',
-      source: 'SELF_REPORTED',
+      /*
+       * Important:
+       * response.body.id is the CandidateSkill id.
+       * It is NOT the global Skill id.
+       */
+      expect(response.body.id).toEqual(expect.any(String));
+
+      candidateSkillId = response.body.id;
     });
 
-    /*
-     * Important:
-     * response.body.id is the CandidateSkill id.
-     * It is NOT the global Skill id.
-     */
-    expect(response.body.id).toEqual(expect.any(String));
+    it('should mark a manually added skill as SELF_REPORTED', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/candidates/me/skills')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
 
-    candidateSkillId = response.body.id;
-  });
+      expect(Array.isArray(response.body)).toBe(true);
 
-  it('should mark a manually added skill as SELF_REPORTED', async () => {
-    const response = await request(app.getHttpServer())
-      .get('/api/v1/candidates/me/skills')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .expect(200);
-
-    expect(Array.isArray(response.body)).toBe(true);
-
-    const candidateSkill = response.body.find(
-      (item: { id: string }) => item.id === candidateSkillId,
-    );
-
-    expect(candidateSkill).toBeDefined();
-    expect(candidateSkill.source).toBe('SELF_REPORTED');
-  });
-
-  it('should not allow a candidate to set VERIFIED', async () => {
-    const response = await request(app.getHttpServer())
-      .post('/api/v1/candidates/me/skills')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({
-        skillId,
-        proficiencyLevel: 4,
-        yearsOfExperience: 3,
-        source: 'VERIFIED',
-      })
-      .expect(400);
-
-    expect(response.body.message).toEqual(
-      expect.arrayContaining(['property source should not exist']),
-    );
-  });
-
-  it('should not allow a candidate to set RECRUITER_CONFIRMED', async () => {
-    const response = await request(app.getHttpServer())
-      .post('/api/v1/candidates/me/skills')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({
-        skillId,
-        proficiencyLevel: 4,
-        yearsOfExperience: 3,
-        source: 'RECRUITER_CONFIRMED',
-      })
-      .expect(400);
-
-    expect(response.body.message).toEqual(
-      expect.arrayContaining(['property source should not exist']),
-    );
-  });
-
-  it('should not allow a candidate to set ASSESSMENT', async () => {
-    const response = await request(app.getHttpServer())
-      .post('/api/v1/candidates/me/skills')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({
-        skillId,
-        proficiencyLevel: 4,
-        yearsOfExperience: 3,
-        source: 'ASSESSMENT',
-      })
-      .expect(400);
-
-    expect(response.body.message).toEqual(
-      expect.arrayContaining(['property source should not exist']),
-    );
-  });
-
-  it('should not allow a candidate to manipulate provenance on PATCH', async () => {
-    const response = await request(app.getHttpServer())
-      .patch(`/api/v1/candidates/me/skills/${candidateSkillId}`)
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({
-        proficiencyLevel: 5,
-        source: 'VERIFIED',
-      })
-      .expect(400);
-
-    expect(response.body.message).toEqual(
-      expect.arrayContaining(['property source should not exist']),
-    );
-
-    const listResponse = await request(app.getHttpServer())
-      .get('/api/v1/candidates/me/skills')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .expect(200);
-
-    const candidateSkill = listResponse.body.find(
-      (item: { id: string }) => item.id === candidateSkillId,
-    );
-
-    expect(candidateSkill).toBeDefined();
-    expect(candidateSkill.source).toBe('SELF_REPORTED');
-  });
-
-  it('should allow a candidate to update proficiency', async () => {
-    const response = await request(app.getHttpServer())
-      .patch(`/api/v1/candidates/me/skills/${candidateSkillId}`)
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({
-        proficiencyLevel: 5,
-      })
-      .expect(200);
-
-    expect(response.body).toMatchObject({
-      id: candidateSkillId,
-      skillId,
-      proficiencyLevel: 5,
-      source: 'SELF_REPORTED',
-    });
-  });
-
-  it('should allow a candidate to update years of experience', async () => {
-    const response = await request(app.getHttpServer())
-      .patch(`/api/v1/candidates/me/skills/${candidateSkillId}`)
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({
-        yearsOfExperience: 5,
-      })
-      .expect(200);
-
-    expect(response.body).toMatchObject({
-      id: candidateSkillId,
-      skillId,
-      yearsOfExperience: '5',
-      source: 'SELF_REPORTED',
-    });
-  });
-
-  it('should allow a candidate to list own skills', async () => {
-    const response = await request(app.getHttpServer())
-      .get('/api/v1/candidates/me/skills')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .expect(200);
-
-    expect(Array.isArray(response.body)).toBe(true);
-
-    const candidateSkill = response.body.find(
-      (item: { id: string }) => item.id === candidateSkillId,
-    );
-
-    expect(candidateSkill).toBeDefined();
-    expect(candidateSkill.skillId).toBe(skillId);
-    expect(candidateSkill.source).toBe('SELF_REPORTED');
-  });
-
-  it('should allow a candidate to remove their own skill', async () => {
-    const response = await request(app.getHttpServer())
-      .delete(`/api/v1/candidates/me/skills/${candidateSkillId}`)
-      .set('Authorization', `Bearer ${accessToken}`)
-      .expect(200);
-
-    expect(response.body).toEqual({
-      message: 'Candidate skill deleted successfully',
-    });
-
-    const listResponse = await request(app.getHttpServer())
-      .get('/api/v1/candidates/me/skills')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .expect(200);
-
-    expect(
-      listResponse.body.some(
+      const candidateSkill = response.body.find(
         (item: { id: string }) => item.id === candidateSkillId,
-      ),
-    ).toBe(false);
-  });
+      );
 
-  afterAll(async () => {
-    await app.close();
+      expect(candidateSkill).toBeDefined();
+      expect(candidateSkill.source).toBe('SELF_REPORTED');
+    });
+
+    it('should not allow a candidate to set VERIFIED', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/candidates/me/skills')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          skillId,
+          proficiencyLevel: 4,
+          yearsOfExperience: 3,
+          source: 'VERIFIED',
+        })
+        .expect(400);
+
+      expect(response.body.message).toEqual(
+        expect.arrayContaining(['property source should not exist']),
+      );
+    });
+
+    it('should not allow a candidate to set RECRUITER_CONFIRMED', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/candidates/me/skills')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          skillId,
+          proficiencyLevel: 4,
+          yearsOfExperience: 3,
+          source: 'RECRUITER_CONFIRMED',
+        })
+        .expect(400);
+
+      expect(response.body.message).toEqual(
+        expect.arrayContaining(['property source should not exist']),
+      );
+    });
+
+    it('should not allow a candidate to set ASSESSMENT', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/candidates/me/skills')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          skillId,
+          proficiencyLevel: 4,
+          yearsOfExperience: 3,
+          source: 'ASSESSMENT',
+        })
+        .expect(400);
+
+      expect(response.body.message).toEqual(
+        expect.arrayContaining(['property source should not exist']),
+      );
+    });
+
+    it('should not allow a candidate to manipulate provenance on PATCH', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/candidates/me/skills/${candidateSkillId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          proficiencyLevel: 5,
+          source: 'VERIFIED',
+        })
+        .expect(400);
+
+      expect(response.body.message).toEqual(
+        expect.arrayContaining(['property source should not exist']),
+      );
+
+      const listResponse = await request(app.getHttpServer())
+        .get('/api/v1/candidates/me/skills')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const candidateSkill = listResponse.body.find(
+        (item: { id: string }) => item.id === candidateSkillId,
+      );
+
+      expect(candidateSkill).toBeDefined();
+      expect(candidateSkill.source).toBe('SELF_REPORTED');
+    });
+
+    it('should allow a candidate to update proficiency', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/candidates/me/skills/${candidateSkillId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          proficiencyLevel: 5,
+        })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: candidateSkillId,
+        skillId,
+        proficiencyLevel: 5,
+        source: 'SELF_REPORTED',
+      });
+    });
+
+    it('should allow a candidate to update years of experience', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/candidates/me/skills/${candidateSkillId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          yearsOfExperience: 5,
+        })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id: candidateSkillId,
+        skillId,
+        yearsOfExperience: '5',
+        source: 'SELF_REPORTED',
+      });
+    });
+
+    it('should allow a candidate to list own skills', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/candidates/me/skills')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+
+      const candidateSkill = response.body.find(
+        (item: { id: string }) => item.id === candidateSkillId,
+      );
+
+      expect(candidateSkill).toBeDefined();
+      expect(candidateSkill.skillId).toBe(skillId);
+      expect(candidateSkill.source).toBe('SELF_REPORTED');
+    });
+
+    it('should allow a candidate to remove their own skill', async () => {
+      const response = await request(app.getHttpServer())
+        .delete(`/api/v1/candidates/me/skills/${candidateSkillId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(response.body).toEqual({
+        message: 'Candidate skill deleted successfully',
+      });
+
+      const listResponse = await request(app.getHttpServer())
+        .get('/api/v1/candidates/me/skills')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(
+        listResponse.body.some(
+          (item: { id: string }) => item.id === candidateSkillId,
+        ),
+      ).toBe(false);
+    });
+
+    afterAll(async () => {
+      await app.close();
+    });
   });
-});

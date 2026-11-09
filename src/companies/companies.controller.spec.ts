@@ -49,11 +49,15 @@ describe('CompaniesController', () => {
     const dto = {
       name: 'Acme',
       description: 'Acme description',
+      website: 'https://example.com',
+      location: 'Amsterdam',
     };
 
     const company = {
       id: 'company-1',
       name: 'Acme',
+      website: 'https://example.com',
+      location: 'Amsterdam',
     };
 
     companiesService.create.mockResolvedValue(company);
@@ -68,6 +72,8 @@ describe('CompaniesController', () => {
     const company = {
       id: 'company-1',
       name: 'Acme',
+      website: 'https://example.com',
+      location: 'Amsterdam',
     };
 
     companiesService.getMyCompany.mockResolvedValue(company);
@@ -82,11 +88,15 @@ describe('CompaniesController', () => {
     const dto = {
       name: 'Updated Acme',
       description: 'Updated description',
+      website: 'https://example.com',
+      location: 'Amsterdam',
     };
 
     const company = {
       id: 'company-1',
       name: 'Updated Acme',
+      website: 'https://example.com',
+      location: 'Amsterdam',
     };
 
     companiesService.updateMyCompany.mockResolvedValue(company);

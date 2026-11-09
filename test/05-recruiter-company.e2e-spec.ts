@@ -258,6 +258,8 @@ describe('05 - Recruiter & Company (e2e)', () => {
         .send({
           name: `E2E Company ${Date.now()}`,
           description: 'Company created during E2E testing',
+          website: 'https://example.com',
+          location: 'Amsterdam',
         })
         .expect(201);
 
@@ -290,6 +292,8 @@ describe('05 - Recruiter & Company (e2e)', () => {
         .send({
           name: `Second E2E Company ${Date.now()}`,
           description: 'Should not be created',
+          website: 'https://example.com',
+          location: 'Amsterdam',
         })
         .expect(409);
     });
@@ -337,6 +341,8 @@ describe('05 - Recruiter & Company (e2e)', () => {
         .send({
           name: `E2E Second Company ${Date.now()}`,
           description: 'Second recruiter company',
+          website: 'https://example.com',
+          location: 'Rotterdam',
         })
         .expect(201);
 

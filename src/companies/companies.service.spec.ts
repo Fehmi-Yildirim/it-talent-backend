@@ -118,7 +118,7 @@ describe('CompaniesService', () => {
       });
     });
 
-    it('should create a company without optional website and location', async () => {
+    it('should create a company with website and location', async () => {
       prisma.recruiter.findUnique.mockResolvedValue({
         id: 'recruiter-1',
         companyId: null,
@@ -131,8 +131,8 @@ describe('CompaniesService', () => {
         name: 'Acme',
         slug: 'acme',
         description: 'Description',
-        website: null,
-        location: null,
+        website: 'https://example.com',
+        location: 'Amsterdam',
       });
 
       prisma.recruiter.update.mockResolvedValue({
@@ -143,6 +143,8 @@ describe('CompaniesService', () => {
       const result = await service.create('user-1', {
         name: 'Acme',
         description: 'Description',
+        website: 'https://example.com',
+        location: 'Amsterdam',
       });
 
       expect(prisma.company.create).toHaveBeenCalledWith({
@@ -150,8 +152,8 @@ describe('CompaniesService', () => {
           name: 'Acme',
           slug: 'acme',
           description: 'Description',
-          website: null,
-          location: null,
+          website: 'https://example.com',
+          location: 'Amsterdam',
         },
       });
 
@@ -160,8 +162,8 @@ describe('CompaniesService', () => {
         name: 'Acme',
         slug: 'acme',
         description: 'Description',
-        website: null,
-        location: null,
+        website: 'https://example.com',
+        location: 'Amsterdam',
       });
     });
 
@@ -172,6 +174,8 @@ describe('CompaniesService', () => {
         service.create('user-1', {
           name: 'Acme',
           description: 'Description',
+          website: 'https://example.com',
+          location: 'Amsterdam',
         }),
       ).rejects.toThrow(
         new ForbiddenException('Only recruiters can create a company'),
@@ -191,6 +195,8 @@ describe('CompaniesService', () => {
         service.create('user-1', {
           name: 'Acme',
           description: 'Description',
+          website: 'https://example.com',
+          location: 'Amsterdam',
         }),
       ).rejects.toThrow(
         new ConflictException('Recruiter is already assigned to a company'),

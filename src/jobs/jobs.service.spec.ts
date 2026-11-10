@@ -1613,9 +1613,10 @@ describe('JobsService', () => {
 
     expect(prisma.job.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderBy: {
-          title: 'asc',
-        },
+        orderBy: [
+          { title: 'asc' },
+          { id: 'asc' },
+        ],
       }),
     );
 

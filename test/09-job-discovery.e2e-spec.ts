@@ -1032,9 +1032,10 @@ describe('09 - Job Discovery (e2e)', () => {
           in: body.items.map((job) => job.id),
         },
       },
-      orderBy: {
-        title: 'asc',
-      },
+      orderBy: [
+        { title: 'asc' },
+        { id: 'asc' },
+      ],
       select: {
         id: true,
       },

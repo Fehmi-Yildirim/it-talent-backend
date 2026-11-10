@@ -19,7 +19,7 @@ import { UpdateJobRequirementDto } from './dto/update-job-requirement.dto';
 
 @Injectable()
 export class JobsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   // Create a Job
   async create(userId: string, dto: CreateJobDto) {
@@ -251,17 +251,17 @@ export class JobsService {
           },
           ...(workModeMatch
             ? [
-                {
-                  workMode: workModeMatch,
-                },
-              ]
+              {
+                workMode: workModeMatch,
+              },
+            ]
             : []),
           ...(employmentTypeMatch
             ? [
-                {
-                  employmentType: employmentTypeMatch,
-                },
-              ]
+              {
+                employmentType: employmentTypeMatch,
+              },
+            ]
             : []),
           {
             requirements: {
@@ -355,7 +355,7 @@ export class JobsService {
     }
 
     // Sorting
-    let orderBy: Prisma.JobOrderByWithRelationInput = {
+    let orderBy: Prisma.JobOrderByWithRelationInput | Prisma.JobOrderByWithRelationInput[] = {
       publishedAt: 'desc',
     };
 
@@ -367,9 +367,10 @@ export class JobsService {
         break;
 
       case 'title':
-        orderBy = {
-          title: 'asc',
-        };
+        orderBy = [
+          { title: 'asc' },
+          { id: 'asc' },
+        ];
         break;
 
       case 'newest':
@@ -607,22 +608,22 @@ export class JobsService {
         : {}),
       ...(requiredSkillIds !== undefined || preferredSkillIds !== undefined
         ? {
-            requirements: {
-              deleteMany: {},
-              create: [
-                ...(requiredSkillIds ?? []).map((skillId) => ({
-                  skillId,
-                  required: true,
-                  minimumLevel: 1,
-                })),
-                ...(preferredSkillIds ?? []).map((skillId) => ({
-                  skillId,
-                  required: false,
-                  minimumLevel: 1,
-                })),
-              ],
-            },
-          }
+          requirements: {
+            deleteMany: {},
+            create: [
+              ...(requiredSkillIds ?? []).map((skillId) => ({
+                skillId,
+                required: true,
+                minimumLevel: 1,
+              })),
+              ...(preferredSkillIds ?? []).map((skillId) => ({
+                skillId,
+                required: false,
+                minimumLevel: 1,
+              })),
+            ],
+          },
+        }
         : {}),
     };
 
@@ -1238,13 +1239,13 @@ export class JobsService {
     const updateData = {
       ...(dto.required !== undefined
         ? {
-            required: dto.required,
-          }
+          required: dto.required,
+        }
         : {}),
       ...(dto.minimumLevel !== undefined
         ? {
-            minimumLevel: dto.minimumLevel,
-          }
+          minimumLevel: dto.minimumLevel,
+        }
         : {}),
     };
 

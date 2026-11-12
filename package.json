@@ -19,6 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
     "db:create-admin": "tsx scripts/create-admin.ts",
+    "db:ensure-admin": "tsx scripts/ensure-admin.ts",
     "db:seed:demo": "tsx prisma/demo-seed.ts",
     "db:cleanup:demo": "tsx prisma/demo-cleanup.ts",
     "db:seed:e2e": "tsx prisma/e2e-seed.ts"

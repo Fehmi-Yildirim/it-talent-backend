@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import * as argon2 from 'argon2';
 
-import { UserRole } from '../../generated/prisma/enums';
+import { UserRole, UserStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../database/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -270,9 +270,14 @@ export class UsersService {
       }
     }
 
-    return this.prisma.user.delete({
+    // Keep the user row (and its candidate/recruiter history) so related
+    // records remain valid. Authentication already rejects non-ACTIVE users.
+    return this.prisma.user.update({
       where: {
         id,
+      },
+      data: {
+        status: UserStatus.DELETED,
       },
       select: {
         id: true,

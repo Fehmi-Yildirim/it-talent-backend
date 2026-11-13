@@ -5,6 +5,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp } from './helpers/create-test-app';
+import { PrismaService } from '../src/database/prisma.service';
 
 describe('13 - User security (e2e)', () => {
     let app: INestApplication;
@@ -26,7 +27,7 @@ describe('13 - User security (e2e)', () => {
 
         adminToken = adminLogin.body.accessToken;
 
-        // Register a separate candidate for these tests.
+        // Register a pending candidate, then activate it as the administrator.
         const registration = await request(app.getHttpServer())
             .post('/api/v1/auth/register')
             .send({
@@ -34,13 +35,11 @@ describe('13 - User security (e2e)', () => {
                 password: 'SecurePassword123!',
                 firstName: 'Security',
                 lastName: 'Candidate',
+                role: 'CANDIDATE',
             })
             .expect(201);
 
-        candidateToken = registration.body.accessToken;
         candidateId = registration.body.user.id;
-
-        expect(candidateToken).toEqual(expect.any(String));
         expect(candidateId).toEqual(expect.any(String));
 
         await request(app.getHttpServer())
@@ -48,11 +47,27 @@ describe('13 - User security (e2e)', () => {
             .set('Authorization', `Bearer ${adminToken}`)
             .send({ status: 'ACTIVE' })
             .expect(200);
+
+        const candidateLogin = await request(app.getHttpServer())
+            .post('/api/v1/auth/login')
+            .send({
+                email: registration.body.user.email,
+                password: 'SecurePassword123!',
+            })
+            .expect(201);
+
+        candidateToken = candidateLogin.body.accessToken;
+        expect(candidateToken).toEqual(expect.any(String));
     });
 
     afterAll(async () => {
         // Clean up the test candidate using the administrator account.
         if (adminToken && candidateId) {
+            const prisma = app.get(PrismaService);
+            await prisma.candidate.deleteMany({
+                where: { userId: candidateId },
+            });
+
             await request(app.getHttpServer())
                 .delete(`/api/v1/users/${candidateId}`)
                 .set('Authorization', `Bearer ${adminToken}`);

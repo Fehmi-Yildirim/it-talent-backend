@@ -4,8 +4,7 @@ import request from 'supertest';
 
 import { createTestApp } from './helpers/create-test-app';
 
-interface RegisterResponse {
-    accessToken: string;
+interface RegistrationResponse {
     user: {
         email: string;
         firstName: string;
@@ -18,19 +17,19 @@ interface RegisterResponse {
 describe('12 - Registration security (e2e)', () => {
     let app: INestApplication;
 
-    beforeAll(async () => {
-        app = await createTestApp();
+    beforeEach(async () => {
+        app = await createTestApp({ disableRateLimit: true });
     });
 
-    afterAll(async () => {
+    afterEach(async () => {
         await app.close();
     });
 
-    it('should reject registration when ADMIN role is supplied', async () => {
+    it('should reject registration with ADMIN role', async () => {
         await request(app.getHttpServer())
             .post('/api/v1/auth/register')
             .send({
-                email: `admin-escalation-${Date.now()}@example.com`,
+                email: `admin-${Date.now()}@example.com`,
                 password: 'SecurePassword123!',
                 firstName: 'Test',
                 lastName: 'Admin',
@@ -39,28 +38,66 @@ describe('12 - Registration security (e2e)', () => {
             .expect(400);
     });
 
-    it('should register a user as CANDIDATE by default', async () => {
-        const email = `candidate-security-${Date.now()}@example.com`;
+    it('should reject registration without a role', async () => {
+        await request(app.getHttpServer())
+            .post('/api/v1/auth/register')
+            .send({
+                email: `missing-role-${Date.now()}@example.com`,
+                password: 'SecurePassword123!',
+                firstName: 'Test',
+                lastName: 'User',
+            })
+            .expect(400);
+    });
 
-        const response = await request(app.getHttpServer())
+    it.each(['CANDIDATE', 'RECRUITER'])(
+        'should register a %s with PENDING status and no access token',
+        async (role) => {
+            const email = `${role.toLowerCase()}-${Date.now()}@example.com`;
+
+            const response = await request(app.getHttpServer())
+                .post('/api/v1/auth/register')
+                .send({
+                    email,
+                    password: 'SecurePassword123!',
+                    firstName: 'Test',
+                    lastName: 'User',
+                    role,
+                })
+                .expect(201);
+
+            const body = response.body as RegistrationResponse;
+
+            expect(body.user).toMatchObject({
+                email,
+                firstName: 'Test',
+                lastName: 'User',
+                role,
+                status: 'PENDING',
+            });
+
+            expect(body).not.toHaveProperty('accessToken');
+        },
+    );
+
+    it('should reject login while the account is PENDING', async () => {
+        const email = `pending-${Date.now()}@example.com`;
+        const password = 'SecurePassword123!';
+
+        await request(app.getHttpServer())
             .post('/api/v1/auth/register')
             .send({
                 email,
-                password: 'SecurePassword123!',
-                firstName: 'Test',
-                lastName: 'Candidate',
+                password,
+                firstName: 'Pending',
+                lastName: 'User',
+                role: 'CANDIDATE',
             })
             .expect(201);
 
-        const body = response.body as RegisterResponse;
-
-        expect(body.accessToken).toEqual(expect.any(String));
-        expect(body.user).toMatchObject({
-            email,
-            firstName: 'Test',
-            lastName: 'Candidate',
-            role: 'CANDIDATE',
-            status: 'PENDING',
-        });
+        await request(app.getHttpServer())
+            .post('/api/v1/auth/login')
+            .send({ email, password })
+            .expect(401);
     });
 });

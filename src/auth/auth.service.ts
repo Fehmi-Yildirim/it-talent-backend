@@ -1,3 +1,4 @@
+
 import {
   ConflictException,
   Injectable,
@@ -8,7 +9,7 @@ import * as argon2 from 'argon2';
 import { PrismaService } from '../database/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { UserRole } from '../../generated/prisma/enums';
+import { PublicRegistrationRole } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
@@ -17,18 +18,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) { }
 
-  async register(dto: RegisterDto): Promise<{
-    user: {
-      id: string;
-      email: string;
-      firstName: string;
-      lastName: string;
-      role: string;
-      status: string;
-      createdAt: Date;
-    };
-    accessToken: string;
-  }> {
+  async register(dto: RegisterDto) {
     const email = dto.email.trim().toLowerCase();
 
     const existingUser = await this.prisma.user.findUnique({
@@ -36,37 +26,49 @@ export class AuthService {
       select: { id: true },
     });
 
-
     if (existingUser) {
       throw new ConflictException('Unable to create account');
     }
 
     const passwordHash = await argon2.hash(dto.password);
 
+    const user = await this.prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          email,
+          passwordHash,
+          firstName: dto.firstName.trim(),
+          lastName: dto.lastName.trim(),
+          role: dto.role,
+          status: 'PENDING',
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          status: true,
+          createdAt: true,
+        },
+      });
 
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        role: UserRole.CANDIDATE,
-        status: 'PENDING',
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        status: true,
-        createdAt: true,
-      },
+      if (dto.role === PublicRegistrationRole.CANDIDATE) {
+        await tx.candidate.create({
+          data: { userId: createdUser.id },
+        });
+      } else if (dto.role === PublicRegistrationRole.RECRUITER) {
+        await tx.recruiter.create({
+          data: { userId: createdUser.id },
+        });
+      }
+
+      return createdUser;
     });
 
     return {
       user,
-      accessToken: await this.signToken(user.id, user.email, user.firstName, user.lastName, user.role),
+      message: 'Registration successful. Your account is awaiting administrator approval.',
     };
   }
 
@@ -81,7 +83,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const passwordValid = await argon2.verify(user.passwordHash, dto.password);
+    const passwordValid = await argon2.verify(
+      user.passwordHash,
+      dto.password,
+    );
 
     if (!passwordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -100,7 +105,13 @@ export class AuthService {
         role: user.role,
         status: user.status,
       },
-      accessToken: await this.signToken(user.id, user.email, user.firstName, user.lastName, user.role),
+      accessToken: await this.signToken(
+        user.id,
+        user.email,
+        user.firstName,
+        user.lastName,
+        user.role,
+      ),
     };
   }
 

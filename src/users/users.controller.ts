@@ -1,3 +1,4 @@
+
 import {
   Body,
   Controller,
@@ -13,6 +14,7 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { UserRole } from '../../generated/prisma/enums';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { DemoReadOnlyGuard } from '../auth/guards/demo-read-only.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { JwtStrategy } from '../auth/strategies/jwt.strategy';
@@ -29,13 +31,13 @@ type AuthenticatedRequest = Request & {
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, DemoReadOnlyGuard)
   @Get('me')
   getMe(@Req() req: AuthenticatedRequest) {
     return this.usersService.getMe(req.user.id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, DemoReadOnlyGuard)
   @Patch('me')
   updateMe(
     @Body() dto: UpdateUserDto,
@@ -50,26 +52,26 @@ export class UsersController {
   }
 
   @Roles(UserRole.ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, DemoReadOnlyGuard)
   @Post()
   create(@Body() dto: CreateUserDto) {
     return this.usersService.create(dto);
   }
 
   @Roles(UserRole.ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, DemoReadOnlyGuard)
   @Get()
   findAll() {
     return this.usersService.findAll();
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, DemoReadOnlyGuard)
   @Get(':id')
   findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.usersService.findOne(id, req.user.id, req.user.role);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, DemoReadOnlyGuard)
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -80,7 +82,7 @@ export class UsersController {
   }
 
   @Roles(UserRole.ADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, DemoReadOnlyGuard)
   @Delete(':id')
   remove(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
     return this.usersService.remove(

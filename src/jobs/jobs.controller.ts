@@ -27,13 +27,14 @@ import { GetJobsQueryDto } from './dto/get-jobs-query.dto';
 import { JobDiscoveryResponseDto } from './dto/job-discovery-response.dto';
 import { JobDetailResponseDto } from './dto/job-detail-response.dto';
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface';
+import { DemoReadOnlyGuard } from '../auth/guards/demo-read-only.guard';
 
 @ApiTags('Jobs')
 @ApiBearerAuth('access-token')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, DemoReadOnlyGuard)
 @Controller('jobs')
 export class JobsController {
-  constructor(private readonly jobsService: JobsService) {}
+  constructor(private readonly jobsService: JobsService) { }
 
   @Post()
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateJobDto) {

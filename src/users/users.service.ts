@@ -27,6 +27,7 @@ export class UsersService {
         lastName: true,
         role: true,
         status: true,
+        isDemo: true,
         createdAt: true,
         updatedAt: true,
       },

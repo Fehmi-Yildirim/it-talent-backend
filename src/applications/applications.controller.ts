@@ -17,8 +17,9 @@ import { CreateApplicationDto } from './dto/create-application.dto'
 import { UpdateApplicationStatusDto } from './dto/update-application-status.dto'
 import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface'
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
+import { DemoReadOnlyGuard } from '../auth/guards/demo-read-only.guard'
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, DemoReadOnlyGuard)
 @Controller()
 export class ApplicationsController {
     constructor(

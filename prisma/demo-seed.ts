@@ -455,6 +455,11 @@ async function main() {
               'Recruiter account collision or password mismatch detected.',
             );
           }
+
+          await tx.user.update({
+            where: { id: IDS.recruiterUser },
+            data: { isDemo: true },
+          });
         } else {
           await tx.user.create({
             data: {
@@ -465,6 +470,7 @@ async function main() {
               lastName: 'Recruiter',
               role: 'RECRUITER',
               status: 'ACTIVE',
+              isDemo: true,
             },
           });
         }
@@ -534,6 +540,11 @@ async function main() {
                 `Candidate account collision or password mismatch detected for candidate ${index + 1}.`,
               );
             }
+
+            await tx.user.update({
+              where: { id: ids.user },
+              data: { isDemo: true },
+            });
           } else {
             await tx.user.create({
               data: {
@@ -544,6 +555,7 @@ async function main() {
                 lastName: candidate.lastName,
                 role: 'CANDIDATE',
                 status: 'ACTIVE',
+                isDemo: true,
               },
             });
           }

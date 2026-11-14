@@ -68,7 +68,8 @@ export class AuthService {
 
     return {
       user,
-      message: 'Registration successful. Your account is awaiting administrator approval.',
+      message:
+        'Registration successful. Your account is awaiting administrator approval.',
     };
   }
 
@@ -104,6 +105,7 @@ export class AuthService {
         lastName: user.lastName,
         role: user.role,
         status: user.status,
+        isDemo: user.isDemo,
       },
       accessToken: await this.signToken(
         user.id,

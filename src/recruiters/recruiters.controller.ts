@@ -14,6 +14,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UpdateRecruiterDto } from './dto/update-recruiter.dto';
 import { RecruitersService } from './recruiters.service';
+import { DemoReadOnlyGuard } from '../auth/guards/demo-read-only.guard'
 
 type AuthenticatedRequest = Request & {
   user: Awaited<ReturnType<JwtStrategy['validate']>>;
@@ -23,7 +24,7 @@ type AuthenticatedRequest = Request & {
 @ApiBearerAuth('access-token')
 @Controller('recruiters')
 @Roles(UserRole.RECRUITER)
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, DemoReadOnlyGuard)
 export class RecruitersController {
   constructor(private readonly recruitersService: RecruitersService) { }
 

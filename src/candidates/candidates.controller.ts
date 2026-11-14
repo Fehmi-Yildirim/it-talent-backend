@@ -34,6 +34,7 @@ import { UpdateCandidateDto } from './dto/update-candidate.dto'
 import { UploadedCandidateCv } from './uploaded-cv.interface'
 import { CandidatesService } from './candidates.service'
 import { CvUploadInterceptor } from './cv-upload.interceptor'
+import { DemoReadOnlyGuard } from '../auth/guards/demo-read-only.guard'
 
 type AuthenticatedRequest = Request & {
   user: Awaited<ReturnType<JwtStrategy['validate']>>
@@ -121,7 +122,7 @@ async function isValidDocx(buffer: Buffer): Promise<boolean> {
 @ApiBearerAuth('access-token')
 @Controller('candidates')
 @Roles(UserRole.CANDIDATE)
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, DemoReadOnlyGuard)
 export class CandidatesController {
   constructor(
     private readonly candidatesService: CandidatesService,

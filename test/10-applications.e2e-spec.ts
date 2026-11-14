@@ -900,61 +900,15 @@ describe('10 - Applications (e2e)', () => {
             )
         }
 
-        expect(
-            Object.keys(
-                storedApplication,
-            ),
-        ).not.toContain(
-            'cvPath',
-        )
-
-        expect(
-            Object.keys(
-                storedApplication,
-            ),
-        ).not.toContain(
-            'cvOriginalName',
-        )
-
-        expect(
-            Object.keys(
-                storedApplication,
-            ),
-        ).not.toContain(
-            'cvMimeType',
-        )
-
-        expect(
-            Object.keys(
-                storedApplication,
-            ),
-        ).not.toContain(
-            'cvSize',
-        )
-
-        expect(
-            Object.keys(
-                storedApplication,
-            ),
-        ).not.toContain(
-            'cvExpiresAt',
-        )
-
-        expect(
-            Object.keys(
-                storedApplication,
-            ),
-        ).not.toContain(
-            'cvRetentionConsent',
-        )
-
-        expect(
-            Object.keys(
-                storedApplication,
-            ),
-        ).not.toContain(
-            'cvConsentAt',
-        )
+        expect(storedApplication).toMatchObject({
+            cvPath: null,
+            cvOriginalName: null,
+            cvMimeType: null,
+            cvSize: null,
+            cvExpiresAt: null,
+            cvRetentionConsent: false,
+            cvConsentAt: null,
+        })
     })
 
     it('05 - should reject a duplicate application', async () => {

@@ -23,6 +23,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { CompaniesService } from './companies.service';
+import { DemoReadOnlyGuard } from '../auth/guards/demo-read-only.guard'
 
 type AuthenticatedRequest = Request & {
   user: Awaited<ReturnType<JwtStrategy['validate']>>;
@@ -32,7 +33,7 @@ type AuthenticatedRequest = Request & {
 @ApiBearerAuth('access-token')
 @Controller('companies')
 @Roles(UserRole.RECRUITER)
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, DemoReadOnlyGuard)
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) { }
 

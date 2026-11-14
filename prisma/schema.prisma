@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -28,6 +29,7 @@ model User {
   lastName     String
   role         UserRole
   status       UserStatus @default(PENDING)
+  isDemo       Boolean    @default(false)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -263,12 +265,31 @@ model Match {
   @@map("matches")
 }
 
+model SystemSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
 model Application {
   id          String            @id @default(uuid()) @db.Uuid
   jobId       String            @db.Uuid
   candidateId String            @db.Uuid
   coverLetter String?
   status      ApplicationStatus @default(PENDING)
+
+  // Legacy CV metadata retained to prevent loss of existing database records.
+  cvPath             String?
+  cvOriginalName     String?
+  cvMimeType         String?
+  cvSize             Int?
+  cvExpiresAt        DateTime?
+  cvRetentionConsent Boolean           @default(false)
+  cvConsentAt        DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -281,16 +302,6 @@ model Application {
   @@index([jobId])
   @@index([status])
   @@map("applications")
-}
-
-model SystemSetting {
-  id        String   @id @default(uuid()) @db.Uuid
-  key       String   @unique
-  value     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("system_settings")
 }
 
 enum ApplicationStatus {

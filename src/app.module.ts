@@ -17,6 +17,7 @@ import { RecruitersModule } from './recruiters/recruiters.module';
 import { SettingsModule } from './settings/settings.module';
 import { SkillsModule } from './skills/skills.module';
 import { UsersModule } from './users/users.module';
+import { ContentModule } from './content/content.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { UsersModule } from './users/users.module';
     ApplicationsModule,
     DashboardModule,
     SettingsModule,
+    ContentModule,
   ],
   controllers: [AppController],
   providers: [

@@ -10,12 +10,16 @@ import { PrismaService } from '../database/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { PublicRegistrationRole } from './dto/register.dto';
+import { ConfigService } from '@nestjs/config';
+import { ServiceUnavailableException } from '@nestjs/common';
+import { DemoLoginDto } from './dto/demo-login.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) { }
 
   async register(dto: RegisterDto) {
@@ -131,5 +135,54 @@ export class AuthService {
       lastName,
       role,
     });
+  }
+
+  async demoLogin(dto: DemoLoginDto) {
+    const emailKey =
+      dto.role === 'CANDIDATE'
+        ? 'DEMO_CANDIDATE_EMAIL'
+        : 'DEMO_RECRUITER_EMAIL';
+
+    const email = this.configService.get<string>(emailKey);
+
+    if (!email) {
+      throw new ServiceUnavailableException(
+        'Demo access is currently unavailable',
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: email.trim().toLowerCase() },
+    });
+
+    if (
+      !user ||
+      user.isDemo !== true ||
+      user.status !== 'ACTIVE' ||
+      user.role !== dto.role
+    ) {
+      throw new UnauthorizedException(
+        'Demo access is currently unavailable',
+      );
+    }
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        status: user.status,
+        isDemo: user.isDemo,
+      },
+      accessToken: await this.signToken(
+        user.id,
+        user.email,
+        user.firstName,
+        user.lastName,
+        user.role,
+      ),
+    };
   }
 }

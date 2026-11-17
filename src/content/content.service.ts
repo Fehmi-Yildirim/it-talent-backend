@@ -1,3 +1,4 @@
+
 import {
   BadRequestException,
   Injectable,
@@ -6,17 +7,59 @@ import {
 import { PrismaService } from '../database/prisma.service';
 
 const SUPPORTED_LOCALES = ['nl', 'en'] as const;
+const DEFAULT_LOCALE = 'nl';
+const MAX_SLUG_ATTEMPTS = 20;
 
 @Injectable()
 export class ContentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
-  private validateLocale(locale: string) {
+  private validateLocale(locale: string): void {
     if (
-      !SUPPORTED_LOCALES.includes(locale as (typeof SUPPORTED_LOCALES)[number])
+      !SUPPORTED_LOCALES.includes(
+        locale as (typeof SUPPORTED_LOCALES)[number],
+      )
     ) {
       throw new BadRequestException('Unsupported locale');
     }
+  }
+
+  private slugify(value: string): string {
+    const slug = value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 100)
+      .replace(/-+$/g, '');
+
+    if (!slug) {
+      throw new BadRequestException(
+        'The title must contain at least one letter or number',
+      );
+    }
+
+    return slug;
+  }
+
+  private slugCandidate(base: string, attempt: number): string {
+    if (attempt === 0) {
+      return base;
+    }
+
+    const suffix = `-${attempt + 1}`;
+    return `${base.slice(0, 100 - suffix.length)}${suffix}`;
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'P2002'
+    );
   }
 
   async findPublished(slug: string, locale: string) {
@@ -25,10 +68,11 @@ export class ContentService {
     const translation = await this.prisma.contentTranslation.findFirst({
       where: {
         locale,
+        slug,
         isPublished: true,
-        page: { slug },
       },
       select: {
+        slug: true,
         locale: true,
         publishedTitle: true,
         publishedIntroduction: true,
@@ -49,14 +93,18 @@ export class ContentService {
       include: {
         translations: true,
       },
-      orderBy: { slug: 'asc' },
+      orderBy: {
+        createdAt: 'asc',
+      },
     });
   }
 
   async findOne(id: string) {
     const page = await this.prisma.contentPage.findUnique({
       where: { id },
-      include: { translations: true },
+      include: {
+        translations: true,
+      },
     });
 
     if (!page) {
@@ -66,10 +114,45 @@ export class ContentService {
     return page;
   }
 
-  async create(slug: string) {
-    return this.prisma.contentPage.create({
-      data: { slug },
-    });
+  async create(title: string) {
+    const normalizedTitle = title.trim();
+    const baseSlug = this.slugify(normalizedTitle);
+
+    for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+      const slug = this.slugCandidate(baseSlug, attempt);
+
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const page = await tx.contentPage.create({
+            data: {},
+          });
+
+          await tx.contentTranslation.create({
+            data: {
+              pageId: page.id,
+              locale: DEFAULT_LOCALE,
+              slug,
+              draftTitle: normalizedTitle,
+            },
+          });
+
+          return tx.contentPage.findUniqueOrThrow({
+            where: { id: page.id },
+            include: {
+              translations: true,
+            },
+          });
+        });
+      } catch (error) {
+        if (!this.isUniqueConstraintError(error)) {
+          throw error;
+        }
+      }
+    }
+
+    throw new BadRequestException(
+      'Could not generate a unique slug for this title',
+    );
   }
 
   async saveTranslation(
@@ -85,21 +168,72 @@ export class ContentService {
     this.validateLocale(locale);
     await this.findOne(pageId);
 
-    return this.prisma.contentTranslation.upsert({
+    const existing = await this.prisma.contentTranslation.findUnique({
       where: {
         pageId_locale: { pageId, locale },
       },
-      create: {
-        pageId,
-        locale,
-        ...data,
-        updatedById: userId,
-      },
-      update: {
-        ...data,
-        updatedById: userId,
-      },
     });
+
+    if (existing) {
+      return this.prisma.contentTranslation.update({
+        where: { id: existing.id },
+        data: {
+          ...data,
+          updatedById: userId,
+        },
+      });
+    }
+
+    if (!data.draftTitle?.trim()) {
+      throw new BadRequestException(
+        'A title is required to create a translation',
+      );
+    }
+
+    const normalizedTitle = data.draftTitle.trim();
+    const baseSlug = this.slugify(normalizedTitle);
+
+    for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+      const slug = this.slugCandidate(baseSlug, attempt);
+
+      try {
+        return await this.prisma.contentTranslation.create({
+          data: {
+            pageId,
+            locale,
+            slug,
+            ...data,
+            draftTitle: normalizedTitle,
+            updatedById: userId,
+          },
+        });
+      } catch (error) {
+        if (!this.isUniqueConstraintError(error)) {
+          throw error;
+        }
+
+        const concurrentlyCreated =
+          await this.prisma.contentTranslation.findUnique({
+            where: {
+              pageId_locale: { pageId, locale },
+            },
+          });
+
+        if (concurrentlyCreated) {
+          return this.prisma.contentTranslation.update({
+            where: { id: concurrentlyCreated.id },
+            data: {
+              ...data,
+              updatedById: userId,
+            },
+          });
+        }
+      }
+    }
+
+    throw new BadRequestException(
+      'Could not generate a unique slug for this translation',
+    );
   }
 
   async publish(pageId: string, locale: string) {
@@ -118,7 +252,9 @@ export class ContentService {
       translation.draftTitle.trim().length === 0 ||
       translation.draftContent === null
     ) {
-      throw new BadRequestException('Translation requires a title and content');
+      throw new BadRequestException(
+        'Translation requires a title and content',
+      );
     }
 
     return this.prisma.contentTranslation.update({
@@ -146,7 +282,9 @@ export class ContentService {
 
     return this.prisma.contentTranslation.update({
       where: { id: translation.id },
-      data: { isPublished: false },
+      data: {
+        isPublished: false,
+      },
     });
   }
 

@@ -314,7 +314,6 @@ enum ApplicationStatus {
 
 model ContentPage {
   id        String   @id @default(uuid()) @db.Uuid
-  slug      String   @unique @db.VarChar(100)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -327,6 +326,7 @@ model ContentTranslation {
   id     String @id @default(uuid()) @db.Uuid
   pageId String @db.Uuid
   locale String @db.VarChar(2)
+  slug   String @db.VarChar(100)
 
   draftTitle        String?
   draftIntroduction String?
@@ -346,6 +346,7 @@ model ContentTranslation {
   updatedBy User?       @relation(fields: [updatedById], references: [id], onDelete: SetNull)
 
   @@unique([pageId, locale])
+  @@unique([locale, slug])
   @@index([locale, isPublished])
   @@index([updatedById])
   @@map("content_translations")

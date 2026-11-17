@@ -1,8 +1,8 @@
-import { IsString, Matches, MaxLength } from 'class-validator';
+import { IsString, MaxLength, MinLength } from 'class-validator';
 
 export class CreateContentDto {
   @IsString()
-  @MaxLength(100)
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-  slug: string;
+  @MinLength(1)
+  @MaxLength(200)
+  title: string;
 }

@@ -29,7 +29,7 @@ interface AuthenticatedRequest extends Request {
 @Roles(UserRole.ADMIN)
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AdminContentController {
-  constructor(private readonly contentService: ContentService) {}
+  constructor(private readonly contentService: ContentService) { }
 
   @Get()
   findAll() {
@@ -38,7 +38,7 @@ export class AdminContentController {
 
   @Post()
   create(@Body() dto: CreateContentDto) {
-    return this.contentService.create(dto.slug);
+    return this.contentService.create(dto.title);
   }
 
   @Get(':id')

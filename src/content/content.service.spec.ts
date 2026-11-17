@@ -16,7 +16,7 @@ describe('ContentService', () => {
     contentTranslation: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
-      upsert: jest.fn(),
+      create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
     },
@@ -58,7 +58,7 @@ describe('ContentService', () => {
           where: {
             locale: 'nl',
             isPublished: true,
-            page: { slug: 'over-ons' },
+            slug: 'over-ons',
           },
         }),
       );
@@ -84,7 +84,8 @@ describe('ContentService', () => {
   describe('saveTranslation', () => {
     it('should save draft content without changing published content', async () => {
       prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
-      prismaMock.contentTranslation.upsert.mockResolvedValue({
+      prismaMock.contentTranslation.findUnique.mockResolvedValue(null);
+      prismaMock.contentTranslation.create.mockResolvedValue({
         id: 'translation-1',
       });
 
@@ -95,37 +96,18 @@ describe('ContentService', () => {
 
       await service.saveTranslation('page-1', 'nl', draft, 'user-1');
 
-      expect(prismaMock.contentTranslation.upsert).toHaveBeenCalledWith(
+      expect(prismaMock.contentTranslation.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {
-            pageId_locale: {
-              pageId: 'page-1',
-              locale: 'nl',
-            },
-          },
-          create: {
+          data: {
             ...draft,
             pageId: 'page-1',
             locale: 'nl',
-            updatedById: 'user-1',
-          },
-          update: {
-            ...draft,
+            slug: 'nieuwe-titel',
+            draftTitle: 'Nieuwe titel',
             updatedById: 'user-1',
           },
         }),
       );
-
-      const upsertCalls: unknown = prismaMock.contentTranslation.upsert.mock.calls;
-      const upsertCall = (upsertCalls as [unknown][])[0][0] as {
-        update: Record<string, unknown>;
-      };
-
-      expect(upsertCall.update).not.toHaveProperty('publishedTitle');
-      expect(upsertCall.update).not.toHaveProperty('publishedIntroduction');
-      expect(upsertCall.update).not.toHaveProperty('publishedContent');
-      expect(upsertCall.update).not.toHaveProperty('isPublished');
-      expect(upsertCall.update).not.toHaveProperty('publishedAt');
     });
   });
 

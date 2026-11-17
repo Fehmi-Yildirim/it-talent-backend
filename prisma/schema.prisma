@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -22,16 +21,17 @@ enum UserStatus {
 }
 
 model User {
-  id           String     @id @default(uuid()) @db.Uuid
-  email        String     @unique
-  passwordHash String
-  firstName    String
-  lastName     String
-  role         UserRole
-  status       UserStatus @default(PENDING)
-  isDemo       Boolean    @default(false)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id                  String               @id @default(uuid()) @db.Uuid
+  email               String               @unique
+  passwordHash        String
+  firstName           String
+  lastName            String
+  role                UserRole
+  status              UserStatus           @default(PENDING)
+  isDemo              Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  contentTranslations ContentTranslation[]
 
   candidate Candidate?
   recruiter Recruiter?
@@ -288,7 +288,7 @@ model Application {
   cvMimeType         String?
   cvSize             Int?
   cvExpiresAt        DateTime?
-  cvRetentionConsent Boolean           @default(false)
+  cvRetentionConsent Boolean   @default(false)
   cvConsentAt        DateTime?
 
   createdAt DateTime @default(now())
@@ -310,4 +310,43 @@ enum ApplicationStatus {
   ACCEPTED
   REJECTED
   WITHDRAWN
+}
+
+model ContentPage {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  translations ContentTranslation[]
+
+  @@map("content_pages")
+}
+
+model ContentTranslation {
+  id     String @id @default(uuid()) @db.Uuid
+  pageId String @db.Uuid
+  locale String @db.VarChar(2)
+
+  draftTitle        String?
+  draftIntroduction String?
+  draftContent      Json?
+
+  publishedTitle        String?
+  publishedIntroduction String?
+  publishedContent      Json?
+  isPublished           Boolean   @default(false)
+  publishedAt           DateTime?
+
+  updatedById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  page      ContentPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  updatedBy User?       @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([pageId, locale])
+  @@index([locale, isPublished])
+  @@index([updatedById])
+  @@map("content_translations")
 }

@@ -1,4 +1,5 @@
-import { IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsTiptapJson } from '../validators/tiptap-json.validator';
 
 export class UpdateContentTranslationDto {
   @IsOptional()
@@ -12,6 +13,6 @@ export class UpdateContentTranslationDto {
   draftIntroduction?: string;
 
   @IsOptional()
-  @IsObject()
+  @IsTiptapJson()
   draftContent?: Record<string, unknown>;
 }

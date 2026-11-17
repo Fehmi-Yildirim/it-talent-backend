@@ -40,6 +40,29 @@ describe('AdminContentController', () => {
     expect(controller).toBeDefined();
   });
 
+  it('should pass the title and locale when creating a page', async () => {
+    const dto = {
+      title: 'About this app',
+      locale: 'en' as const,
+    };
+
+    const expectedPage = {
+      id: 'page-123',
+      translations: [],
+    };
+
+    contentServiceMock.create.mockResolvedValue(expectedPage);
+
+    const result = await controller.create(dto);
+
+    expect(contentServiceMock.create).toHaveBeenCalledWith(
+      'About this app',
+      'en',
+    );
+
+    expect(result).toEqual(expectedPage);
+  });
+
   it('should apply JWT and role guards to the controller', () => {
     const guards: unknown = Reflect.getMetadata(
       GUARDS_METADATA,

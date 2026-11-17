@@ -36,9 +36,10 @@ export class AdminContentController {
     return this.contentService.findAll();
   }
 
+
   @Post()
   create(@Body() dto: CreateContentDto) {
-    return this.contentService.create(dto.title);
+    return this.contentService.create(dto.title, dto.locale);
   }
 
   @Get(':id')

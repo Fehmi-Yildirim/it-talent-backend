@@ -7,7 +7,6 @@ import {
 import { PrismaService } from '../database/prisma.service';
 
 const SUPPORTED_LOCALES = ['nl', 'en'] as const;
-const DEFAULT_LOCALE = 'nl';
 const MAX_SLUG_ATTEMPTS = 20;
 
 @Injectable()
@@ -114,7 +113,10 @@ export class ContentService {
     return page;
   }
 
-  async create(title: string) {
+
+  async create(title: string, locale: string) {
+    this.validateLocale(locale);
+
     const normalizedTitle = title.trim();
     const baseSlug = this.slugify(normalizedTitle);
 
@@ -130,7 +132,7 @@ export class ContentService {
           await tx.contentTranslation.create({
             data: {
               pageId: page.id,
-              locale: DEFAULT_LOCALE,
+              locale,
               slug,
               draftTitle: normalizedTitle,
             },
@@ -154,6 +156,7 @@ export class ContentService {
       'Could not generate a unique slug for this title',
     );
   }
+
 
   async saveTranslation(
     pageId: string,

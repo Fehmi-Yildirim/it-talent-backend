@@ -6,6 +6,16 @@ import { PrismaService } from '../database/prisma.service';
 describe('ContentService', () => {
   let service: ContentService;
 
+  const txMock = {
+    contentPage: {
+      create: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+    },
+    contentTranslation: {
+      create: jest.fn(),
+    },
+  };
+
   const prismaMock = {
     contentPage: {
       findMany: jest.fn(),
@@ -20,6 +30,10 @@ describe('ContentService', () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    $transaction: jest.fn(
+      (callback: (tx: typeof txMock) => Promise<unknown>) =>
+        callback(txMock),
+    ),
   };
 
   beforeEach(async () => {
@@ -36,6 +50,63 @@ describe('ContentService', () => {
     }).compile();
 
     service = module.get<ContentService>(ContentService);
+  });
+  describe('create', () => {
+    beforeEach(() => {
+      txMock.contentPage.create.mockResolvedValue({
+        id: 'page-1',
+      });
+
+      txMock.contentTranslation.create.mockResolvedValue({
+        id: 'translation-1',
+      });
+
+      txMock.contentPage.findUniqueOrThrow.mockResolvedValue({
+        id: 'page-1',
+        translations: [
+          {
+            id: 'translation-1',
+            locale: 'en',
+            slug: 'about-this-app',
+            draftTitle: 'About this app',
+          },
+        ],
+      });
+    });
+
+    it('should create a page with an English translation', async () => {
+      await service.create('About this app', 'en');
+
+      expect(txMock.contentTranslation.create).toHaveBeenCalledWith({
+        data: {
+          pageId: 'page-1',
+          locale: 'en',
+          slug: 'about-this-app',
+          draftTitle: 'About this app',
+        },
+      });
+    });
+
+    it('should create a page with a Dutch translation', async () => {
+      await service.create('Over deze app', 'nl');
+
+      expect(txMock.contentTranslation.create).toHaveBeenCalledWith({
+        data: {
+          pageId: 'page-1',
+          locale: 'nl',
+          slug: 'over-deze-app',
+          draftTitle: 'Over deze app',
+        },
+      });
+    });
+
+    it('should reject unsupported locales', async () => {
+      await expect(
+        service.create('About this app', 'fr'),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('findPublished', () => {

@@ -9,6 +9,21 @@ import { ContentService } from './content.service';
 describe('AdminContentController', () => {
   let controller: AdminContentController;
 
+  const validTiptapContent = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'text',
+            text: 'Dit is een test.',
+          },
+        ],
+      },
+    ],
+  };
+
   const contentServiceMock = {
     findAll: jest.fn(),
     create: jest.fn(),
@@ -76,7 +91,7 @@ describe('AdminContentController', () => {
   it('should pass the authenticated user ID when saving a translation', async () => {
     const dto = {
       draftTitle: 'Testpagina',
-      draftContent: { type: 'doc', content: [] },
+      draftContent: validTiptapContent,
     };
 
     const request = {
@@ -101,5 +116,47 @@ describe('AdminContentController', () => {
       dto,
       'admin-123',
     );
+  });
+
+  it('should pass the same page ID when adding a second locale', async () => {
+    const dto = {
+      draftTitle: 'About this app',
+      draftContent: validTiptapContent,
+    };
+
+    const request = {
+      user: {
+        id: 'admin-123',
+        role: UserRole.ADMIN,
+      },
+    };
+
+    const expectedTranslation = {
+      id: 'translation-en',
+      pageId: 'page-123',
+      locale: 'en',
+    };
+
+    contentServiceMock.saveTranslation.mockResolvedValue(
+      expectedTranslation,
+    );
+
+    const result = await controller.saveTranslation(
+      'page-123',
+      'en',
+      dto,
+      request as unknown as Parameters<
+        typeof controller.saveTranslation
+      >[3],
+    );
+
+    expect(contentServiceMock.saveTranslation).toHaveBeenCalledWith(
+      'page-123',
+      'en',
+      dto,
+      'admin-123',
+    );
+
+    expect(result).toEqual(expectedTranslation);
   });
 });

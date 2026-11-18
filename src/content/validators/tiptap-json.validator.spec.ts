@@ -138,6 +138,47 @@ describe('isTiptapJson', () => {
         expect(isTiptapJson({ type: 'paragraph' })).toBe(false);
     });
 
+    it('rejects empty Tiptap documents', () => {
+        expect(
+            isTiptapJson({
+                type: 'doc',
+                content: [],
+            }),
+        ).toBe(false);
+    });
+
+    it('rejects documents containing only empty paragraphs', () => {
+        expect(
+            isTiptapJson({
+                type: 'doc',
+                content: [
+                    {
+                        type: 'paragraph',
+                        content: [],
+                    },
+                ],
+            }),
+        ).toBe(false);
+    });
+
+    it('rejects documents containing only whitespace', () => {
+        expect(
+            isTiptapJson({
+                type: 'doc',
+                content: [
+                    {
+                        type: 'paragraph',
+                        content: [
+                            {
+                                type: 'text',
+                                text: '   ',
+                            },
+                        ],
+                    },
+                ],
+            }),
+        ).toBe(false);
+    });
 
     it('rejects unexpected properties on the document', () => {
         expect(

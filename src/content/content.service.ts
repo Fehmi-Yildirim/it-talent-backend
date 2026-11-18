@@ -112,7 +112,6 @@ export class ContentService {
         slug: true,
         locale: true,
         publishedTitle: true,
-        publishedIntroduction: true,
         publishedContent: true,
         publishedAt: true,
       },
@@ -199,7 +198,6 @@ export class ContentService {
     locale: string,
     data: {
       draftTitle?: string;
-      draftIntroduction?: string;
       draftContent?: object | null;
     },
     userId: string,
@@ -352,7 +350,6 @@ export class ContentService {
       where: { id: translation.id },
       data: {
         publishedTitle: translation.draftTitle,
-        publishedIntroduction: translation.draftIntroduction,
         publishedContent: translation.draftContent,
         isPublished: true,
         publishedAt: new Date(),

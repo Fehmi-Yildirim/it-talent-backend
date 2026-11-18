@@ -329,11 +329,9 @@ model ContentTranslation {
   slug   String @db.VarChar(100)
 
   draftTitle        String?
-  draftIntroduction String?
   draftContent      Json?
 
   publishedTitle        String?
-  publishedIntroduction String?
   publishedContent      Json?
   isPublished           Boolean   @default(false)
   publishedAt           DateTime?

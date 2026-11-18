@@ -8,11 +8,6 @@ export class UpdateContentTranslationDto {
   draftTitle?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  draftIntroduction?: string;
-
-  @IsOptional()
   @IsTiptapJson()
   draftContent?: Record<string, unknown>;
 }

@@ -130,7 +130,6 @@ describe('ContentService', () => {
       const publishedPage = {
         locale: 'nl',
         publishedTitle: 'Over ons',
-        publishedIntroduction: 'Introductie',
         publishedContent: validTiptapContent,
         publishedAt: new Date(),
       };
@@ -393,7 +392,6 @@ describe('ContentService', () => {
       const translation = {
         id: 'translation-1',
         draftTitle: 'Nieuwe titel',
-        draftIntroduction: 'Nieuwe introductie',
         draftContent: validTiptapContent,
       };
 
@@ -409,7 +407,6 @@ describe('ContentService', () => {
         where: { id: 'translation-1' },
         data: {
           publishedTitle: 'Nieuwe titel',
-          publishedIntroduction: 'Nieuwe introductie',
           publishedContent: translation.draftContent,
           isPublished: true,
           publishedAt: expect.any(Date) as Date,

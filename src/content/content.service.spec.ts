@@ -310,6 +310,7 @@ describe('ContentService', () => {
         data: {
           draftTitle: 'Nieuwe Nederlandse titel',
           updatedById: 'user-1',
+          slug: 'nieuwe-nederlandse-titel',
         },
       });
 

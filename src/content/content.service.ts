@@ -225,10 +225,51 @@ export class ContentService {
     });
 
     if (existing) {
+      let slug = existing.slug;
+
+      if (
+        data.draftTitle !== undefined &&
+        data.draftTitle.trim() !== existing.draftTitle
+      ) {
+        const normalizedTitle = data.draftTitle.trim();
+        const baseSlug = this.slugify(normalizedTitle);
+        let foundUniqueSlug = false;
+
+        for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+          const candidate = this.slugCandidate(baseSlug, attempt);
+
+          const conflictingTranslation =
+            await this.prisma.contentTranslation.findUnique({
+              where: {
+                locale_slug: {
+                  locale,
+                  slug: candidate,
+                },
+              },
+            });
+
+          if (
+            !conflictingTranslation ||
+            conflictingTranslation.id === existing.id
+          ) {
+            slug = candidate;
+            foundUniqueSlug = true;
+            break;
+          }
+        }
+
+        if (!foundUniqueSlug) {
+          throw new BadRequestException(
+            'Could not generate a unique slug for this translation',
+          );
+        }
+      }
+
       return this.prisma.contentTranslation.update({
         where: { id: existing.id },
         data: {
           ...data,
+          slug,
           updatedById: userId,
         },
       });

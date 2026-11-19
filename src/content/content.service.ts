@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { Prisma } from '../../generated/prisma/client';
 
 function containsMeaningfulText(value: unknown): boolean {
   if (!value || typeof value !== 'object') {
@@ -150,8 +151,17 @@ export class ContentService {
     return page;
   }
 
-  async create(title: string, locale: string) {
+
+  async create(
+    title: string,
+    locale: string,
+    draftContent: Prisma.InputJsonValue,
+  ) {
     this.validateLocale(locale);
+
+    if (!hasMeaningfulTiptapContent(draftContent)) {
+      throw new BadRequestException('Page content cannot be empty');
+    }
 
     const normalizedTitle = title.trim();
     const baseSlug = this.slugify(normalizedTitle);
@@ -171,6 +181,7 @@ export class ContentService {
               locale,
               slug,
               draftTitle: normalizedTitle,
+              draftContent,
             },
           });
 

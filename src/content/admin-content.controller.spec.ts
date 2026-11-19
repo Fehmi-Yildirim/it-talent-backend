@@ -55,10 +55,11 @@ describe('AdminContentController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('should pass the title and locale when creating a page', async () => {
+  it('should pass the title, locale and draft content when creating a page', async () => {
     const dto = {
       title: 'About this app',
       locale: 'en' as const,
+      draftContent: validTiptapContent,
     };
 
     const expectedPage = {
@@ -73,6 +74,7 @@ describe('AdminContentController', () => {
     expect(contentServiceMock.create).toHaveBeenCalledWith(
       'About this app',
       'en',
+      validTiptapContent,
     );
 
     expect(result).toEqual(expectedPage);

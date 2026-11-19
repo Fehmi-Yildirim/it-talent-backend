@@ -17,6 +17,7 @@ import { ContentService } from './content.service';
 import { Request } from 'express';
 import { CreateContentDto } from './dto/create-content.dto';
 import { UpdateContentTranslationDto } from './dto/update-content-translation.dto';
+import { Prisma } from '../../generated/prisma/client';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -36,10 +37,13 @@ export class AdminContentController {
     return this.contentService.findAll();
   }
 
-
   @Post()
   create(@Body() dto: CreateContentDto) {
-    return this.contentService.create(dto.title, dto.locale);
+    return this.contentService.create(
+      dto.title,
+      dto.locale,
+      dto.draftContent as Prisma.InputJsonValue,
+    );
   }
 
   @Get(':id')

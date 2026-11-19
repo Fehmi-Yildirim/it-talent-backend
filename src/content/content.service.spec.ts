@@ -91,7 +91,7 @@ describe('ContentService', () => {
     });
 
     it('should create a page with an English translation', async () => {
-      await service.create('About this app', 'en');
+      await service.create('About this app', 'en', validTiptapContent);
 
       expect(txMock.contentTranslation.create).toHaveBeenCalledWith({
         data: {
@@ -99,12 +99,13 @@ describe('ContentService', () => {
           locale: 'en',
           slug: 'about-this-app',
           draftTitle: 'About this app',
+          draftContent: validTiptapContent,
         },
       });
     });
 
     it('should create a page with a Dutch translation', async () => {
-      await service.create('Over deze app', 'nl');
+      await service.create('Over deze app', 'nl', validTiptapContent);
 
       expect(txMock.contentTranslation.create).toHaveBeenCalledWith({
         data: {
@@ -112,16 +113,67 @@ describe('ContentService', () => {
           locale: 'nl',
           slug: 'over-deze-app',
           draftTitle: 'Over deze app',
+          draftContent: validTiptapContent,
         },
       });
     });
 
     it('should reject unsupported locales', async () => {
       await expect(
-        service.create('About this app', 'fr'),
+        service.create('About this app', 'fr', validTiptapContent),
       ).rejects.toThrow(BadRequestException);
 
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('should reject an empty Tiptap document without creating a page', async () => {
+      await expect(
+        service.create('Empty page', 'en', {
+          type: 'doc',
+          content: [],
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(txMock.contentPage.create).not.toHaveBeenCalled();
+      expect(txMock.contentTranslation.create).not.toHaveBeenCalled();
+    });
+
+    it('should reject Tiptap content containing only whitespace', async () => {
+      await expect(
+        service.create('Whitespace page', 'en', {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: '   ',
+                },
+              ],
+            },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(txMock.contentPage.create).not.toHaveBeenCalled();
+    });
+
+    it('should reject when creating the translation fails', async () => {
+      txMock.contentTranslation.create.mockRejectedValue(
+        new Error('Database error'),
+      );
+
+      await expect(
+        service.create('About this app', 'en', validTiptapContent),
+      ).rejects.toThrow('Database error');
+
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+      expect(txMock.contentPage.create).toHaveBeenCalledTimes(1);
+      expect(txMock.contentTranslation.create).toHaveBeenCalledTimes(1);
+      expect(txMock.contentPage.findUniqueOrThrow).not.toHaveBeenCalled();
     });
   });
 

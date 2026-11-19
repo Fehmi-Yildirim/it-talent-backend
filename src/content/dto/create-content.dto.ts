@@ -1,6 +1,7 @@
 
 import {
   IsIn,
+  IsObject,
   IsString,
   MaxLength,
   MinLength,
@@ -15,4 +16,7 @@ export class CreateContentDto {
   @IsString()
   @IsIn(['nl', 'en'])
   locale: 'nl' | 'en';
+
+  @IsObject()
+  draftContent: Record<string, unknown>;
 }

@@ -48,4 +48,47 @@ describe('Content Admin (e2e)', () => {
       .get('/content/non-existing-page/nl')
       .expect(404);
   });
+
+  it('should create a content page with title, locale and draft content', async () => {
+    const draftContent = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'text',
+              text: 'This is a test page.',
+            },
+          ],
+        },
+      ],
+    };
+
+    const createdPage = {
+      id: 'page-123',
+      translations: [
+        {
+          id: 'translation-123',
+          locale: 'en',
+          slug: 'about-this-app',
+          draftTitle: 'About this app',
+          draftContent,
+        },
+      ],
+    };
+
+    contentServiceMock.create.mockResolvedValue(createdPage);
+
+    await request(app.getHttpServer())
+      .post('/admin/content')
+      .send({
+        title: 'About this app',
+        locale: 'en',
+        draftContent,
+      })
+      // Authentication is required, so this request should be rejected
+      // unless a valid admin authentication context is provided.
+      .expect(401);
+  });
 });

@@ -212,13 +212,45 @@ function isValidNode(node: unknown): boolean {
     }
 }
 
+function hasMeaningfulContent(nodes: unknown): boolean {
+    if (!Array.isArray(nodes)) {
+        return false;
+    }
+
+    return nodes.some((node) => {
+        if (!isRecord(node)) {
+            return false;
+        }
+
+        if (node.type === 'text') {
+            return (
+                typeof node.text === 'string' &&
+                node.text.trim().length > 0
+            );
+        }
+
+        if (node.type === 'horizontalRule') {
+            return true;
+        }
+
+        return (
+            Array.isArray(node.content) &&
+            hasMeaningfulContent(node.content)
+        );
+    });
+}
+
 export function isTiptapJson(value: unknown): boolean {
-    return (
-        isRecord(value) &&
-        value.type === 'doc' &&
-        hasOnlyKeys(value, ['type', 'content']) &&
-        isBlockContent(value.content)
-    );
+    if (
+        !isRecord(value) ||
+        value.type !== 'doc' ||
+        !hasOnlyKeys(value, ['type', 'content']) ||
+        !isBlockContent(value.content)
+    ) {
+        return false;
+    }
+
+    return hasMeaningfulContent(value.content);
 }
 
 export function IsTiptapJson(validationOptions?: ValidationOptions) {
@@ -231,7 +263,7 @@ export function IsTiptapJson(validationOptions?: ValidationOptions) {
             validator: {
                 validate: (value: unknown) => isTiptapJson(value),
                 defaultMessage: () =>
-                    'Content must be valid Tiptap JSON with supported nodes and marks',
+                    'Content must be valid Tiptap JSON with supported nodes and marks and meaningful content',
             },
         });
     };

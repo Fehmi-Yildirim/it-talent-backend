@@ -1,13 +1,51 @@
-
 import {
   BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { Prisma } from '../../generated/prisma/client';
+
+function containsMeaningfulText(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const node = value as {
+    type?: string;
+    text?: string;
+    content?: unknown[];
+  };
+
+  if (node.type === 'text') {
+    return typeof node.text === 'string' && node.text.trim().length > 0;
+  }
+
+  if (!Array.isArray(node.content)) {
+    return false;
+  }
+
+  return node.content.some(containsMeaningfulText);
+}
+
+function hasMeaningfulTiptapContent(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const document = value as {
+    type?: string;
+    content?: unknown[];
+  };
+
+  if (document.type !== 'doc' || !Array.isArray(document.content)) {
+    return false;
+  }
+
+  return document.content.some(containsMeaningfulText);
+}
 
 const SUPPORTED_LOCALES = ['nl', 'en'] as const;
-const DEFAULT_LOCALE = 'nl';
 const MAX_SLUG_ATTEMPTS = 20;
 
 @Injectable()
@@ -75,7 +113,6 @@ export class ContentService {
         slug: true,
         locale: true,
         publishedTitle: true,
-        publishedIntroduction: true,
         publishedContent: true,
         publishedAt: true,
       },
@@ -114,7 +151,18 @@ export class ContentService {
     return page;
   }
 
-  async create(title: string) {
+
+  async create(
+    title: string,
+    locale: string,
+    draftContent: Prisma.InputJsonValue,
+  ) {
+    this.validateLocale(locale);
+
+    if (!hasMeaningfulTiptapContent(draftContent)) {
+      throw new BadRequestException('Page content cannot be empty');
+    }
+
     const normalizedTitle = title.trim();
     const baseSlug = this.slugify(normalizedTitle);
 
@@ -130,9 +178,10 @@ export class ContentService {
           await tx.contentTranslation.create({
             data: {
               pageId: page.id,
-              locale: DEFAULT_LOCALE,
+              locale,
               slug,
               draftTitle: normalizedTitle,
+              draftContent,
             },
           });
 
@@ -160,12 +209,22 @@ export class ContentService {
     locale: string,
     data: {
       draftTitle?: string;
-      draftIntroduction?: string;
-      draftContent?: object;
+      draftContent?: object | null;
     },
     userId: string,
   ) {
     this.validateLocale(locale);
+
+    if (
+      data.draftContent !== undefined &&
+      data.draftContent !== null &&
+      !hasMeaningfulTiptapContent(data.draftContent)
+    ) {
+      throw new BadRequestException(
+        'Content must contain meaningful text',
+      );
+    }
+
     await this.findOne(pageId);
 
     const existing = await this.prisma.contentTranslation.findUnique({
@@ -175,10 +234,51 @@ export class ContentService {
     });
 
     if (existing) {
+      let slug = existing.slug;
+
+      if (
+        data.draftTitle !== undefined &&
+        data.draftTitle.trim() !== existing.draftTitle
+      ) {
+        const normalizedTitle = data.draftTitle.trim();
+        const baseSlug = this.slugify(normalizedTitle);
+        let foundUniqueSlug = false;
+
+        for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
+          const candidate = this.slugCandidate(baseSlug, attempt);
+
+          const conflictingTranslation =
+            await this.prisma.contentTranslation.findUnique({
+              where: {
+                locale_slug: {
+                  locale,
+                  slug: candidate,
+                },
+              },
+            });
+
+          if (
+            !conflictingTranslation ||
+            conflictingTranslation.id === existing.id
+          ) {
+            slug = candidate;
+            foundUniqueSlug = true;
+            break;
+          }
+        }
+
+        if (!foundUniqueSlug) {
+          throw new BadRequestException(
+            'Could not generate a unique slug for this translation',
+          );
+        }
+      }
+
       return this.prisma.contentTranslation.update({
         where: { id: existing.id },
         data: {
           ...data,
+          slug,
           updatedById: userId,
         },
       });
@@ -250,10 +350,10 @@ export class ContentService {
     if (
       typeof translation.draftTitle !== 'string' ||
       translation.draftTitle.trim().length === 0 ||
-      translation.draftContent === null
+      !hasMeaningfulTiptapContent(translation.draftContent)
     ) {
       throw new BadRequestException(
-        'Translation requires a title and content',
+        'Translation requires a title and meaningful content',
       );
     }
 
@@ -261,7 +361,6 @@ export class ContentService {
       where: { id: translation.id },
       data: {
         publishedTitle: translation.draftTitle,
-        publishedIntroduction: translation.draftIntroduction,
         publishedContent: translation.draftContent,
         isPublished: true,
         publishedAt: new Date(),

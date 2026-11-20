@@ -178,25 +178,80 @@ describe('ContentService', () => {
   });
 
   describe('findPublished', () => {
-    it('should return a published translation for the requested locale', async () => {
+    it('should return a published translation with its published translations', async () => {
+      const publishedAt = new Date();
+
       const publishedPage = {
+        slug: 'over-ons',
         locale: 'nl',
         publishedTitle: 'Over ons',
         publishedContent: validTiptapContent,
-        publishedAt: new Date(),
+        publishedAt,
+        page: {
+          translations: [
+            {
+              locale: 'en',
+              slug: 'about-us',
+            },
+            {
+              locale: 'nl',
+              slug: 'over-ons',
+            },
+          ],
+        },
       };
 
       prismaMock.contentTranslation.findFirst.mockResolvedValue(publishedPage);
 
       const result = await service.findPublished('over-ons', 'nl');
 
-      expect(result).toEqual(publishedPage);
+      expect(result).toEqual({
+        slug: 'over-ons',
+        locale: 'nl',
+        publishedTitle: 'Over ons',
+        publishedContent: validTiptapContent,
+        publishedAt,
+        translations: [
+          {
+            locale: 'en',
+            slug: 'about-us',
+          },
+          {
+            locale: 'nl',
+            slug: 'over-ons',
+          },
+        ],
+      });
+
       expect(prismaMock.contentTranslation.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             locale: 'nl',
             isPublished: true,
             slug: 'over-ons',
+          },
+          select: {
+            slug: true,
+            locale: true,
+            publishedTitle: true,
+            publishedContent: true,
+            publishedAt: true,
+            page: {
+              select: {
+                translations: {
+                  where: {
+                    isPublished: true,
+                  },
+                  orderBy: {
+                    locale: 'asc',
+                  },
+                  select: {
+                    locale: true,
+                    slug: true,
+                  },
+                },
+              },
+            },
           },
         }),
       );

@@ -115,6 +115,22 @@ export class ContentService {
         publishedTitle: true,
         publishedContent: true,
         publishedAt: true,
+        page: {
+          select: {
+            translations: {
+              where: {
+                isPublished: true,
+              },
+              orderBy: {
+                locale: 'asc',
+              },
+              select: {
+                locale: true,
+                slug: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -122,7 +138,12 @@ export class ContentService {
       throw new NotFoundException('Published page not found');
     }
 
-    return translation;
+    const { page, ...publishedPage } = translation;
+
+    return {
+      ...publishedPage,
+      translations: page.translations,
+    };
   }
 
   async findAll() {
@@ -150,7 +171,6 @@ export class ContentService {
 
     return page;
   }
-
 
   async create(
     title: string,

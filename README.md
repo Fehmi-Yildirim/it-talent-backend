@@ -1,70 +1,92 @@
-# React + TypeScript + Vite
+# IT Talent Backend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+<p align="center">
+  <a href="https://nestjs.com/" target="_blank">
+    <img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" />
+  </a>
+</p>
 
-Currently, two official plugins are available:
+<p align="center">
+  A progressive <a href="https://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.
+</p>
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Description
 
-## React Compiler
+IT Talent Backend is a NestJS and TypeScript backend application.
 
-The React Compiler is not enabled on this template because of its impact on development and build performance. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Project setup
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Environment configuration
 
-## Environment Configuration
+Configure the required environment variables in your local `.env` file. See `.env.example` for the available configuration options and example values.
 
-The frontend uses environment variables to configure the API base URL.
+Never commit production secrets, passwords, or private keys to version control.
 
-### Local setup
+## Compile and run the project
 
-1. Copy `.env.example` to `.env.local`:
+```bash
+# Development
+npm run start
 
-   ```bash
-   cp .env.example .env.local
-   ```
+# Watch mode
+npm run start:dev
 
-   On Windows PowerShell, you can use:
+# Production mode
+npm run start:prod
+```
 
-   ```powershell
-   Copy-Item .env.example .env.local
-   ```
+## Authentication Rate Limiting
 
-2. Set `VITE_API_BASE_URL` in `.env.local` to the base URL of your backend API. For example:
+The API applies rate limits to authentication endpoints to help protect against brute-force login attempts and registration abuse.
 
-   ```dotenv
-   VITE_API_BASE_URL=http://localhost:3000/api/v1
-   ```
+Default limits:
 
-3. Start the frontend using the development command configured in `package.json`.
+- **Login** (`POST /api/v1/auth/login`): 5 requests per 60 seconds per client IP.
+- **Registration** (`POST /api/v1/auth/register`): 3 requests per 60 seconds per client IP.
+- Requests exceeding a limit receive HTTP `429 Too Many Requests`.
 
-### Security notes
+The limits can be configured using the following environment variables:
 
-- Keep `.env.local` and other environment-specific files out of version control.
-- `.env.example` is the tracked template for required environment variables. Keep its values safe and suitable for sharing.
-- Variables prefixed with `VITE_` are exposed to client-side code and may be included in the built frontend. **Never store secrets, API keys, passwords, or private tokens in `VITE_` variables.**
-- Store sensitive credentials on the backend, not in the frontend environment configuration.
+| Variable | Default | Description |
+|---|---:|---|
+| `AUTH_LOGIN_TTL_MS` | `60000` | Login rate-limit window in milliseconds |
+| `AUTH_LOGIN_LIMIT` | `5` | Maximum login requests per window |
+| `AUTH_REGISTER_TTL_MS` | `60000` | Registration rate-limit window in milliseconds |
+| `AUTH_REGISTER_LIMIT` | `3` | Maximum registration requests per window |
+
+All four values must be positive safe integers. The default rate-limit window is 60 seconds.
+
+### Reverse Proxy and Client IP Security
+
+Rate limiting relies on the client IP address reported by the HTTP server. The application must not blindly trust client-supplied `X-Forwarded-For` headers.
+
+If the API runs behind a reverse proxy or load balancer, ensure that:
+
+- The proxy removes or overwrites untrusted incoming forwarding headers.
+- The application trusts forwarding information only from explicitly trusted proxy infrastructure.
+- The application cannot be reached directly by clients who could bypass the trusted proxy.
+- Proxy trust settings match the actual deployment topology.
+
+Do not enable broad proxy trust without verifying the deployment configuration. Incorrect proxy trust can allow clients to spoof their IP address and bypass IP-based rate limits.
+
+## Run tests
+
+```bash
+# Unit tests
+npm run test
+
+# End-to-end tests
+npm run test:e2e
+
+# Test coverage
+npm run test:cov
+```
 
 ## Related repositories
 
-- [Backend](https://github.com/Fehmi-Yildirim/it-talent-backend)
-- [Project documentation](./docs/)
+- [Frontend](https://github.com/Fehmi-Yildirim/it-talent-frontend)
+- [Project documentation](https://github.com/Fehmi-Yildirim/it-talent-frontend/tree/main/docs)

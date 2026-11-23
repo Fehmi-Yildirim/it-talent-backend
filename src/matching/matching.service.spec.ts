@@ -81,7 +81,7 @@ describe('MatchingService', () => {
 
         prismaMock.match.upsert.mockResolvedValue({});
 
-        const result = await service.recalculateCandidate('candidate-1');
+        const result: unknown = await service.recalculateCandidate('candidate-1');
 
         expect(result).toEqual({ calculated: 1 });
 
@@ -92,7 +92,7 @@ describe('MatchingService', () => {
                     jobId: 'job-1',
                     overallScore: 66.67,
                     skillScore: 66.67,
-                }),
+                }) as Record<string, unknown>,
             }),
         );
     });
@@ -124,7 +124,7 @@ describe('MatchingService', () => {
         prismaMock.match.findMany.mockResolvedValue(matches);
         prismaMock.match.count.mockResolvedValue(1);
 
-        const result = await service.getMyMatches(
+        const result: unknown = await service.getMyMatches(
             'user-1',
             1,
             20,
@@ -144,7 +144,7 @@ describe('MatchingService', () => {
             expect.objectContaining({
                 where: expect.objectContaining({
                     candidateId: 'candidate-1',
-                }),
+                }) as Record<string, unknown>,
                 skip: 0,
                 take: 20,
             }),
@@ -171,7 +171,7 @@ describe('MatchingService', () => {
         prismaMock.match.findMany.mockResolvedValue(matches);
         prismaMock.match.count.mockResolvedValue(1);
 
-        const result = await service.getCandidatesForJob(
+        const result: unknown = await service.getCandidatesForJob(
             'recruiter-user-1',
             'job-1',
             1,
@@ -193,7 +193,7 @@ describe('MatchingService', () => {
                 where: expect.objectContaining({
                     id: 'job-1',
                     companyId: 'company-1',
-                }),
+                }) as Record<string, unknown>,
             }),
         );
 
@@ -245,7 +245,7 @@ describe('MatchingService', () => {
                 where: expect.objectContaining({
                     id: 'job-2',
                     companyId: 'company-1',
-                }),
+                }) as Record<string, unknown>,
             }),
         );
 

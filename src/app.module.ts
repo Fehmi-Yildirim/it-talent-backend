@@ -26,6 +26,7 @@ import { MatchingModule } from './matching/matching.module';
       isGlobal: true,
       validate: validateEnvironment,
     }),
+
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -40,6 +41,7 @@ import { MatchingModule } from './matching/matching.module';
           ttl: configService.getOrThrow<number>('AUTH_REGISTER_TTL_MS'),
           limit: configService.getOrThrow<number>('AUTH_REGISTER_LIMIT'),
         },
+
       ],
     }),
     ScheduleModule.forRoot(),
@@ -56,6 +58,7 @@ import { MatchingModule } from './matching/matching.module';
     DashboardModule,
     SettingsModule,
     ContentModule,
+    MatchingModule,
   ],
   controllers: [AppController],
   providers: [

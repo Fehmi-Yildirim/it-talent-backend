@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-
 import { Test, TestingModule } from '@nestjs/testing';
-
 import { PrismaService } from '../database/prisma.service';
 import { JobsService } from './jobs.service';
+import { MatchingService } from '../matching/matching.service';
 
 interface RecruiterRecord {
   id?: string;
@@ -73,6 +72,9 @@ async function serviceResult<T>(operation: () => unknown): Promise<T> {
 describe('JobsService', () => {
   let service: JobsService;
 
+  const matchingServiceMock = {
+    recalculateJob: jest.fn().mockResolvedValue(undefined),
+  };
   const prisma = {
     recruiter: {
       findUnique: jest.fn(),
@@ -110,6 +112,10 @@ describe('JobsService', () => {
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: MatchingService,
+          useValue: matchingServiceMock,
         },
       ],
     }).compile();
@@ -536,6 +542,7 @@ describe('JobsService', () => {
       companyId: 'company-a',
       title: 'Senior Backend Developer',
     });
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should reject updating a job belonging to another company', async () => {
@@ -697,6 +704,7 @@ describe('JobsService', () => {
         },
       },
     });
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should remove all job requirements when empty skill arrays are provided', async () => {
@@ -732,6 +740,7 @@ describe('JobsService', () => {
         },
       },
     });
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should return requirements for a job belonging to the recruiter company', async () => {
@@ -910,8 +919,8 @@ describe('JobsService', () => {
         },
       ],
     });
-
     expect(result).toEqual(transactionRequirements);
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should reject unknown skills when updating requirements', async () => {
@@ -1006,6 +1015,7 @@ describe('JobsService', () => {
     expect(result).toEqual({
       message: 'Job requirement removed successfully',
     });
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should reject removing a non-existing job requirement', async () => {
@@ -1064,6 +1074,7 @@ describe('JobsService', () => {
     });
 
     expect(result.status).toBe('PUBLISHED');
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should close a published job', async () => {
@@ -1102,6 +1113,7 @@ describe('JobsService', () => {
     });
 
     expect(result.status).toBe('CLOSED');
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should discover published and non-expired jobs with pagination', async () => {
@@ -1195,6 +1207,7 @@ describe('JobsService', () => {
     });
 
     expect(result.status).toBe('PAUSED');
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should resume a paused job', async () => {
@@ -1233,6 +1246,7 @@ describe('JobsService', () => {
     });
 
     expect(result.status).toBe('PUBLISHED');
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should close a paused job', async () => {
@@ -1269,8 +1283,8 @@ describe('JobsService', () => {
         },
       },
     });
-
     expect(result.status).toBe('CLOSED');
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should reopen a closed job as draft', async () => {

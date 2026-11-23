@@ -4,16 +4,18 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
 import { PrismaService } from '../../database/prisma.service';
 import { CandidateSkillSource } from '../../../generated/prisma/enums';
-
 import { CreateCandidateSkillDto } from '../../candidates/skills/dto/create-candidate-skill.dto';
 import { UpdateCandidateSkillDto } from '../../candidates/skills/dto/update-candidate-skill.dto';
+import { MatchingService } from '../../matching/matching.service';
 
 @Injectable()
 export class CandidateSkillsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly matchingService: MatchingService,
+  ) { }
 
   async findMine(userId: string) {
     const candidate = await this.prisma.candidate.findUnique({
@@ -115,7 +117,7 @@ export class CandidateSkillsService {
       throw new ConflictException('Candidate already has this skill');
     }
 
-    return this.prisma.candidateSkill.create({
+    const createdSkill = await this.prisma.candidateSkill.create({
       data: {
         candidateId: candidate.id,
         skillId: skill.id,
@@ -127,6 +129,10 @@ export class CandidateSkillsService {
         skill: true,
       },
     });
+
+    await this.matchingService.recalculateCandidate(candidate.id);
+
+    return createdSkill;
   }
 
   async updateMine(
@@ -163,7 +169,7 @@ export class CandidateSkillsService {
       throw new NotFoundException('Candidate skill not found');
     }
 
-    return this.prisma.candidateSkill.update({
+    const updatedSkill = await this.prisma.candidateSkill.update({
       where: {
         id: candidateSkill.id,
       },
@@ -183,6 +189,10 @@ export class CandidateSkillsService {
         },
       },
     });
+
+    await this.matchingService.recalculateCandidate(candidate.id);
+
+    return updatedSkill;
   }
 
   async removeMine(userId: string, candidateSkillId: string) {
@@ -223,6 +233,8 @@ export class CandidateSkillsService {
         id: candidateSkill.id,
       },
     });
+
+    await this.matchingService.recalculateCandidate(candidate.id);
 
     return {
       message: 'Candidate skill deleted successfully',

@@ -18,6 +18,7 @@ import { SettingsModule } from './settings/settings.module';
 import { SkillsModule } from './skills/skills.module';
 import { UsersModule } from './users/users.module';
 import { ContentModule } from './content/content.module';
+import { MatchingModule } from './matching/matching.module';
 
 @Module({
   imports: [

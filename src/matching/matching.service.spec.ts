@@ -18,6 +18,7 @@ describe('MatchingService', () => {
             deleteMany: jest.fn(),
             upsert: jest.fn(),
             findMany: jest.fn(),
+            findUnique: jest.fn(),
             count: jest.fn(),
         },
         recruiter: {
@@ -39,6 +40,79 @@ describe('MatchingService', () => {
         }).compile();
 
         service = module.get<MatchingService>(MatchingService);
+    });
+
+    describe('getMyMatchForJob', () => {
+        const userId = 'user-1';
+        const jobId = 'job-1';
+
+        beforeEach(() => {
+            prismaMock.candidate.findUnique.mockResolvedValue({
+                id: 'candidate-1',
+            });
+
+            prismaMock.job.findFirst.mockResolvedValue({
+                id: jobId,
+            });
+        });
+
+        it('should return the candidate match for a job', async () => {
+            const match = {
+                id: 'match-1',
+                candidateId: 'candidate-1',
+                jobId,
+                overallScore: 85,
+                explanation: {
+                    algorithm: 'weighted-skill-v1',
+                    strengths: [],
+                    gaps: [],
+                    requirementsCount: 2,
+                },
+            };
+
+            prismaMock.match.findUnique.mockResolvedValue(match);
+
+            const result = await service.getMyMatchForJob(userId, jobId);
+
+            expect(result).toEqual({ data: match });
+            expect(prismaMock.match.findUnique).toHaveBeenCalledWith({
+                where: {
+                    candidateId_jobId: {
+                        candidateId: 'candidate-1',
+                        jobId,
+                    },
+                },
+            });
+        });
+
+        it('should return null when no match exists', async () => {
+            prismaMock.match.findUnique.mockResolvedValue(null);
+
+            const result = await service.getMyMatchForJob(userId, jobId);
+
+            expect(result).toEqual({ data: null });
+        });
+
+        it('should throw when the candidate does not exist', async () => {
+            prismaMock.candidate.findUnique.mockResolvedValue(null);
+
+            await expect(
+                service.getMyMatchForJob(userId, jobId),
+            ).rejects.toThrow('Candidate not found');
+
+            expect(prismaMock.job.findFirst).not.toHaveBeenCalled();
+            expect(prismaMock.match.findUnique).not.toHaveBeenCalled();
+        });
+
+        it('should throw when the job is not published or has expired', async () => {
+            prismaMock.job.findFirst.mockResolvedValue(null);
+
+            await expect(
+                service.getMyMatchForJob(userId, jobId),
+            ).rejects.toThrow('Job not found');
+
+            expect(prismaMock.match.findUnique).not.toHaveBeenCalled();
+        });
     });
 
     it('should be defined', () => {

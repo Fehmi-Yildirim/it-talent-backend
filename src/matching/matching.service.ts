@@ -353,4 +353,44 @@ export class MatchingService {
             },
         };
     }
+
+    async getMyMatchForJob(userId: string, jobId: string) {
+        const candidate = await this.prisma.candidate.findUnique({
+            where: { userId },
+            select: { id: true },
+        });
+
+        if (!candidate) {
+            throw new NotFoundException('Candidate not found');
+        }
+
+        const now = new Date();
+
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                status: JobStatus.PUBLISHED,
+                OR: [
+                    { expiresAt: null },
+                    { expiresAt: { gt: now } },
+                ],
+            },
+            select: { id: true },
+        });
+
+        if (!job) {
+            throw new NotFoundException('Job not found');
+        }
+
+        const match = await this.prisma.match.findUnique({
+            where: {
+                candidateId_jobId: {
+                    candidateId: candidate.id,
+                    jobId: job.id,
+                },
+            },
+        });
+
+        return { data: match };
+    }
 }

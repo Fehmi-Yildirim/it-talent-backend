@@ -4,17 +4,13 @@ class JobDiscoverySkillDto {
     @ApiProperty()
     id: string;
 
-
     @ApiProperty()
     name: string;
-
-
 }
 
 class JobDiscoveryRequirementDto {
     @ApiProperty()
     id: string;
-
 
     @ApiProperty()
     skillId: string;
@@ -34,7 +30,6 @@ class JobDiscoveryCompanyDto {
     @ApiProperty()
     id: string;
 
-
     @ApiProperty()
     name: string;
 
@@ -50,16 +45,22 @@ class JobDiscoveryCompanyDto {
     @ApiProperty({ nullable: true })
     location: string | null;
 
-
 }
 
 class JobDiscoveryItemDto {
     @ApiProperty()
     id: string;
 
-
     @ApiProperty()
     companyId: string;
+
+    @ApiProperty({
+        nullable: true,
+        type: String,
+        example: '85.00',
+        description: 'Match score for the authenticated candidate',
+    })
+    matchScore: string | null;
 
     @ApiProperty()
     createdByRecruiterId: string;

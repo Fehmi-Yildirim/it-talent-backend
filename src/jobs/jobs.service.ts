@@ -209,6 +209,19 @@ export class JobsService {
           },
         },
       },
+      ...(query.onlyMatches
+        ? {
+          matches: {
+            some: {
+              candidate: {
+                is: {
+                  userId: candidateUserId,
+                },
+              },
+            },
+          },
+        }
+        : {}),
     };
 
     // General search across job title, description, company,
@@ -395,6 +408,18 @@ export class JobsService {
               skill: true,
             },
           },
+          matches: {
+            where: {
+              candidate: {
+                is: {
+                  userId: candidateUserId,
+                },
+              },
+            },
+            select: {
+              overallScore: true,
+            },
+          },
         },
         orderBy,
         skip,
@@ -406,7 +431,10 @@ export class JobsService {
     ]);
 
     return {
-      items,
+      items: items.map(({ matches, ...job }) => ({
+        ...job,
+        matchScore: matches[0]?.overallScore.toString() ?? null,
+      })),
       total,
       page,
       limit,

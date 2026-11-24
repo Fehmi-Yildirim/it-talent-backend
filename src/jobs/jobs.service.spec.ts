@@ -23,6 +23,18 @@ interface JobRecord {
   salaryMin?: unknown;
   salaryMax?: unknown;
   publishedAt?: Date | null;
+  matches?: {
+    overallScore: string | number;
+  }[];
+  matchScore?: string | null;
+}
+
+interface DiscoveryResult {
+  items: (JobRecord & { matchScore: string | null })[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 interface ServiceJobResult extends JobRecord {
@@ -49,14 +61,6 @@ interface TransactionClient {
     createMany: jest.Mock;
     findMany: jest.Mock;
   };
-}
-
-interface DiscoveryResult {
-  items: JobRecord[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
 }
 
 interface MessageResult {
@@ -1122,12 +1126,12 @@ describe('JobsService', () => {
         id: 'job-1',
         status: 'PUBLISHED',
         title: 'Backend Developer',
+        matches: [],
       },
     ];
 
     prisma.job.findMany.mockResolvedValue(items);
     prisma.job.count.mockResolvedValue(1);
-
     prisma.$transaction.mockResolvedValue([items, 1]);
 
     const result = await serviceResult<DiscoveryResult>(() =>
@@ -1148,6 +1152,20 @@ describe('JobsService', () => {
         orderBy: {
           publishedAt: 'desc',
         },
+        include: expect.objectContaining({
+          matches: {
+            where: {
+              candidate: {
+                is: {
+                  userId: 'candidate-user',
+                },
+              },
+            },
+            select: {
+              overallScore: true,
+            },
+          },
+        }),
       }),
     );
 
@@ -1163,12 +1181,116 @@ describe('JobsService', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
 
     expect(result).toEqual({
-      items,
+      items: [
+        {
+          id: 'job-1',
+          status: 'PUBLISHED',
+          title: 'Backend Developer',
+          matchScore: null,
+        },
+      ],
       total: 1,
       page: 2,
       limit: 10,
       totalPages: 1,
     });
+  });
+
+  it('should filter discovery results to the authenticated candidate matches', async () => {
+    const items: JobRecord[] = [
+      {
+        id: 'job-1',
+        status: 'PUBLISHED',
+        title: 'Backend Developer',
+        matches: [{ overallScore: '85.00' }],
+      },
+    ];
+
+    prisma.job.findMany.mockResolvedValue(items);
+    prisma.job.count.mockResolvedValue(1);
+    prisma.$transaction.mockResolvedValue([items, 1]);
+
+    const result = await serviceResult<DiscoveryResult>(() =>
+      service.discover('candidate-user', {
+        onlyMatches: true,
+        page: 1,
+        limit: 20,
+      }),
+    );
+
+    const expectedMatchFilter = {
+      matches: {
+        some: {
+          candidate: {
+            is: {
+              userId: 'candidate-user',
+            },
+          },
+        },
+      },
+    };
+
+    expect(prisma.job.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining(expectedMatchFilter),
+      }),
+    );
+
+    expect(prisma.job.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining(expectedMatchFilter),
+      }),
+    );
+
+    expect(result.items).toEqual([
+      {
+        id: 'job-1',
+        status: 'PUBLISHED',
+        title: 'Backend Developer',
+        matchScore: '85.00',
+      },
+    ]);
+  });
+
+  it('should return only the authenticated candidate match score', async () => {
+    const items: JobRecord[] = [
+      {
+        id: 'job-1',
+        status: 'PUBLISHED',
+        title: 'Backend Developer',
+        matches: [{ overallScore: '92.50' }],
+      },
+    ];
+
+    prisma.job.findMany.mockResolvedValue(items);
+    prisma.job.count.mockResolvedValue(1);
+    prisma.$transaction.mockResolvedValue([items, 1]);
+
+    const result = await serviceResult<DiscoveryResult>(() =>
+      service.discover('candidate-user', {}),
+    );
+
+    expect(prisma.job.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          matches: {
+            where: {
+              candidate: {
+                is: {
+                  userId: 'candidate-user',
+                },
+              },
+            },
+            select: {
+              overallScore: true,
+            },
+          },
+        }),
+      }),
+    );
+
+    expect(result.items[0]?.matchScore).toBe('92.50');
+    expect(result.items[0]).not.toHaveProperty('matches');
   });
 
   it('should pause a published job', async () => {

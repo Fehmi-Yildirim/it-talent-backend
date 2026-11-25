@@ -66,6 +66,7 @@ export class MatchingController {
     @Roles(UserRole.RECRUITER)
     @ApiOperation({ summary: 'Get matching candidates for a company job' })
     @ApiResponse({ status: 200, description: 'Matching candidates returned' })
+
     getCandidatesForJob(
         @Req() req: AuthenticatedRequest,
         @Param('jobId') jobId: string,
@@ -76,6 +77,8 @@ export class MatchingController {
             jobId,
             pagination.page,
             pagination.limit,
+            pagination.scoreRange,
         );
     }
+
 }

@@ -280,11 +280,13 @@ export class MatchingService {
         };
     }
 
+
     async getCandidatesForJob(
         userId: string,
         jobId: string,
         page: number,
         limit: number,
+        scoreRange: 'all' | 'strong' | 'partial' | 'none' = 'all',
     ) {
         const recruiter = await this.prisma.recruiter.findUnique({
             where: { userId },
@@ -311,7 +313,27 @@ export class MatchingService {
             throw new NotFoundException('Job not found');
         }
 
-        const where = { jobId: job.id };
+        const where: Prisma.MatchWhereInput = {
+            jobId: job.id,
+        };
+
+        switch (scoreRange) {
+            case 'strong':
+                where.overallScore = { gte: 80 };
+                break;
+
+            case 'partial':
+                where.overallScore = { gt: 0, lt: 80 };
+                break;
+
+            case 'none':
+                where.overallScore = { equals: 0 };
+                break;
+
+            case 'all':
+            default:
+                break;
+        }
 
         const [data, total] = await Promise.all([
             this.prisma.match.findMany({
@@ -353,6 +375,7 @@ export class MatchingService {
             },
         };
     }
+
 
     async getMyMatchForJob(userId: string, jobId: string) {
         const candidate = await this.prisma.candidate.findUnique({

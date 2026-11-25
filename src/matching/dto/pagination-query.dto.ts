@@ -1,5 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import {
+    IsIn,
+    IsInt,
+    IsOptional,
+    Max,
+    Min,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PaginationQueryDto {
@@ -17,4 +23,13 @@ export class PaginationQueryDto {
     @Min(1)
     @Max(100)
     limit = 20;
+
+    @ApiPropertyOptional({
+        enum: ['all', 'strong', 'partial', 'none'],
+        default: 'all',
+        description: 'Filter candidates by their overall match score',
+    })
+    @IsOptional()
+    @IsIn(['all', 'strong', 'partial', 'none'])
+    scoreRange: 'all' | 'strong' | 'partial' | 'none' = 'all';
 }

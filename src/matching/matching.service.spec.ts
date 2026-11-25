@@ -225,104 +225,201 @@ describe('MatchingService', () => {
         );
     });
 
-    it('should return paginated candidates for a company job', async () => {
-        const matches = [
-            {
-                id: 'match-1',
-                overallScore: 90,
-                candidateId: 'candidate-1',
-            },
-        ];
+    describe('getCandidatesForJob', () => {
+        beforeEach(() => {
+            prismaMock.recruiter.findUnique.mockResolvedValue({
+                companyId: 'company-1',
+            });
 
-        prismaMock.recruiter.findUnique.mockResolvedValue({
-            companyId: 'company-1',
+            prismaMock.job.findFirst.mockResolvedValue({
+                id: 'job-1',
+            });
+
+            prismaMock.match.findMany.mockResolvedValue([]);
+            prismaMock.match.count.mockResolvedValue(0);
         });
 
-        prismaMock.job.findFirst.mockResolvedValue({
-            id: 'job-1',
-        });
+        it('should return paginated candidates for a company job', async () => {
+            const matches = [
+                {
+                    id: 'match-1',
+                    overallScore: 90,
+                    candidateId: 'candidate-1',
+                },
+            ];
 
-        prismaMock.match.findMany.mockResolvedValue(matches);
-        prismaMock.match.count.mockResolvedValue(1);
+            prismaMock.match.findMany.mockResolvedValue(matches);
+            prismaMock.match.count.mockResolvedValue(1);
 
-        const result: unknown = await service.getCandidatesForJob(
-            'recruiter-user-1',
-            'job-1',
-            1,
-            20,
-        );
-
-        expect(result).toEqual({
-            data: matches,
-            meta: {
-                page: 1,
-                limit: 20,
-                total: 1,
-                totalPages: 1,
-            },
-        });
-
-        expect(prismaMock.job.findFirst).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: expect.objectContaining({
-                    id: 'job-1',
-                    companyId: 'company-1',
-                }) as Record<string, unknown>,
-            }),
-        );
-
-        expect(prismaMock.match.findMany).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: { jobId: 'job-1' },
-                skip: 0,
-                take: 20,
-            }),
-        );
-    });
-
-    it('should reject a recruiter without a company', async () => {
-        prismaMock.recruiter.findUnique.mockResolvedValue({
-            companyId: null,
-        });
-
-        await expect(
-            service.getCandidatesForJob(
+            const result: unknown = await service.getCandidatesForJob(
                 'recruiter-user-1',
                 'job-1',
                 1,
                 20,
-            ),
-        ).rejects.toThrow('Recruiter or company not found');
+                'all',
+            );
 
-        expect(prismaMock.job.findFirst).not.toHaveBeenCalled();
-        expect(prismaMock.match.findMany).not.toHaveBeenCalled();
-    });
+            expect(result).toEqual({
+                data: matches,
+                meta: {
+                    page: 1,
+                    limit: 20,
+                    total: 1,
+                    totalPages: 1,
+                },
+            });
 
-    it('should reject a job that does not belong to the recruiter company', async () => {
-        prismaMock.recruiter.findUnique.mockResolvedValue({
-            companyId: 'company-1',
+            expect(prismaMock.job.findFirst).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: expect.objectContaining({
+                        id: 'job-1',
+                        companyId: 'company-1',
+                    }) as Record<string, unknown>,
+                }),
+            );
+
+            expect(prismaMock.match.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { jobId: 'job-1' },
+                    skip: 0,
+                    take: 20,
+                }),
+            );
+
+            expect(prismaMock.match.count).toHaveBeenCalledWith({
+                where: { jobId: 'job-1' },
+            });
         });
 
-        prismaMock.job.findFirst.mockResolvedValue(null);
-
-        await expect(
-            service.getCandidatesForJob(
+        it('should filter strong matches with a score of at least 80', async () => {
+            await service.getCandidatesForJob(
                 'recruiter-user-1',
-                'job-2',
+                'job-1',
                 1,
                 20,
-            ),
-        ).rejects.toThrow('Job not found');
+                'strong',
+            );
 
-        expect(prismaMock.job.findFirst).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: expect.objectContaining({
-                    id: 'job-2',
-                    companyId: 'company-1',
-                }) as Record<string, unknown>,
-            }),
-        );
+            const expectedWhere = {
+                jobId: 'job-1',
+                overallScore: { gte: 80 },
+            };
 
-        expect(prismaMock.match.findMany).not.toHaveBeenCalled();
+            expect(prismaMock.match.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({ where: expectedWhere }),
+            );
+
+            expect(prismaMock.match.count).toHaveBeenCalledWith({
+                where: expectedWhere,
+            });
+        });
+
+        it('should filter partial matches with a score above 0 and below 80', async () => {
+            await service.getCandidatesForJob(
+                'recruiter-user-1',
+                'job-1',
+                1,
+                20,
+                'partial',
+            );
+
+            const expectedWhere = {
+                jobId: 'job-1',
+                overallScore: { gt: 0, lt: 80 },
+            };
+
+            expect(prismaMock.match.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({ where: expectedWhere }),
+            );
+
+            expect(prismaMock.match.count).toHaveBeenCalledWith({
+                where: expectedWhere,
+            });
+        });
+
+        it('should filter candidates with a score of 0', async () => {
+            await service.getCandidatesForJob(
+                'recruiter-user-1',
+                'job-1',
+                1,
+                20,
+                'none',
+            );
+
+            const expectedWhere = {
+                jobId: 'job-1',
+                overallScore: { equals: 0 },
+            };
+
+            expect(prismaMock.match.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({ where: expectedWhere }),
+            );
+
+            expect(prismaMock.match.count).toHaveBeenCalledWith({
+                where: expectedWhere,
+            });
+        });
+
+        it('should return all matches without a score restriction', async () => {
+            await service.getCandidatesForJob(
+                'recruiter-user-1',
+                'job-1',
+                1,
+                20,
+                'all',
+            );
+
+            const expectedWhere = { jobId: 'job-1' };
+
+            expect(prismaMock.match.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({ where: expectedWhere }),
+            );
+
+            expect(prismaMock.match.count).toHaveBeenCalledWith({
+                where: expectedWhere,
+            });
+        });
+
+        it('should reject a recruiter without a company', async () => {
+            prismaMock.recruiter.findUnique.mockResolvedValue({
+                companyId: null,
+            });
+
+            await expect(
+                service.getCandidatesForJob(
+                    'recruiter-user-1',
+                    'job-1',
+                    1,
+                    20,
+                ),
+            ).rejects.toThrow('Recruiter or company not found');
+
+            expect(prismaMock.job.findFirst).not.toHaveBeenCalled();
+            expect(prismaMock.match.findMany).not.toHaveBeenCalled();
+        });
+
+        it('should reject a job that does not belong to the recruiter company', async () => {
+            prismaMock.job.findFirst.mockResolvedValue(null);
+
+            await expect(
+                service.getCandidatesForJob(
+                    'recruiter-user-1',
+                    'job-2',
+                    1,
+                    20,
+                ),
+            ).rejects.toThrow('Job not found');
+
+            expect(prismaMock.job.findFirst).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: expect.objectContaining({
+                        id: 'job-2',
+                        companyId: 'company-1',
+                    }) as Record<string, unknown>,
+                }),
+            );
+
+            expect(prismaMock.match.findMany).not.toHaveBeenCalled();
+        });
     });
 });

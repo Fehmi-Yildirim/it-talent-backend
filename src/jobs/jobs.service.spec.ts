@@ -1,9 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-
 import { Test, TestingModule } from '@nestjs/testing';
-
 import { PrismaService } from '../database/prisma.service';
 import { JobsService } from './jobs.service';
+import { MatchingService } from '../matching/matching.service';
 
 interface RecruiterRecord {
   id?: string;
@@ -24,6 +23,18 @@ interface JobRecord {
   salaryMin?: unknown;
   salaryMax?: unknown;
   publishedAt?: Date | null;
+  matches?: {
+    overallScore: string | number;
+  }[];
+  matchScore?: string | null;
+}
+
+interface DiscoveryResult {
+  items: (JobRecord & { matchScore: string | null })[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 interface ServiceJobResult extends JobRecord {
@@ -52,14 +63,6 @@ interface TransactionClient {
   };
 }
 
-interface DiscoveryResult {
-  items: JobRecord[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
-
 interface MessageResult {
   message: string;
 }
@@ -73,6 +76,9 @@ async function serviceResult<T>(operation: () => unknown): Promise<T> {
 describe('JobsService', () => {
   let service: JobsService;
 
+  const matchingServiceMock = {
+    recalculateJob: jest.fn().mockResolvedValue(undefined),
+  };
   const prisma = {
     recruiter: {
       findUnique: jest.fn(),
@@ -110,6 +116,10 @@ describe('JobsService', () => {
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: MatchingService,
+          useValue: matchingServiceMock,
         },
       ],
     }).compile();
@@ -536,6 +546,7 @@ describe('JobsService', () => {
       companyId: 'company-a',
       title: 'Senior Backend Developer',
     });
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should reject updating a job belonging to another company', async () => {
@@ -697,6 +708,7 @@ describe('JobsService', () => {
         },
       },
     });
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should remove all job requirements when empty skill arrays are provided', async () => {
@@ -732,6 +744,7 @@ describe('JobsService', () => {
         },
       },
     });
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should return requirements for a job belonging to the recruiter company', async () => {
@@ -910,8 +923,8 @@ describe('JobsService', () => {
         },
       ],
     });
-
     expect(result).toEqual(transactionRequirements);
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should reject unknown skills when updating requirements', async () => {
@@ -1006,6 +1019,7 @@ describe('JobsService', () => {
     expect(result).toEqual({
       message: 'Job requirement removed successfully',
     });
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should reject removing a non-existing job requirement', async () => {
@@ -1064,6 +1078,7 @@ describe('JobsService', () => {
     });
 
     expect(result.status).toBe('PUBLISHED');
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should close a published job', async () => {
@@ -1102,6 +1117,7 @@ describe('JobsService', () => {
     });
 
     expect(result.status).toBe('CLOSED');
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should discover published and non-expired jobs with pagination', async () => {
@@ -1110,12 +1126,12 @@ describe('JobsService', () => {
         id: 'job-1',
         status: 'PUBLISHED',
         title: 'Backend Developer',
+        matches: [],
       },
     ];
 
     prisma.job.findMany.mockResolvedValue(items);
     prisma.job.count.mockResolvedValue(1);
-
     prisma.$transaction.mockResolvedValue([items, 1]);
 
     const result = await serviceResult<DiscoveryResult>(() =>
@@ -1136,6 +1152,20 @@ describe('JobsService', () => {
         orderBy: {
           publishedAt: 'desc',
         },
+        include: expect.objectContaining({
+          matches: {
+            where: {
+              candidate: {
+                is: {
+                  userId: 'candidate-user',
+                },
+              },
+            },
+            select: {
+              overallScore: true,
+            },
+          },
+        }),
       }),
     );
 
@@ -1151,12 +1181,116 @@ describe('JobsService', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
 
     expect(result).toEqual({
-      items,
+      items: [
+        {
+          id: 'job-1',
+          status: 'PUBLISHED',
+          title: 'Backend Developer',
+          matchScore: null,
+        },
+      ],
       total: 1,
       page: 2,
       limit: 10,
       totalPages: 1,
     });
+  });
+
+  it('should filter discovery results to the authenticated candidate matches', async () => {
+    const items: JobRecord[] = [
+      {
+        id: 'job-1',
+        status: 'PUBLISHED',
+        title: 'Backend Developer',
+        matches: [{ overallScore: '85.00' }],
+      },
+    ];
+
+    prisma.job.findMany.mockResolvedValue(items);
+    prisma.job.count.mockResolvedValue(1);
+    prisma.$transaction.mockResolvedValue([items, 1]);
+
+    const result = await serviceResult<DiscoveryResult>(() =>
+      service.discover('candidate-user', {
+        onlyMatches: true,
+        page: 1,
+        limit: 20,
+      }),
+    );
+
+    const expectedMatchFilter = {
+      matches: {
+        some: {
+          candidate: {
+            is: {
+              userId: 'candidate-user',
+            },
+          },
+        },
+      },
+    };
+
+    expect(prisma.job.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining(expectedMatchFilter),
+      }),
+    );
+
+    expect(prisma.job.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining(expectedMatchFilter),
+      }),
+    );
+
+    expect(result.items).toEqual([
+      {
+        id: 'job-1',
+        status: 'PUBLISHED',
+        title: 'Backend Developer',
+        matchScore: '85.00',
+      },
+    ]);
+  });
+
+  it('should return only the authenticated candidate match score', async () => {
+    const items: JobRecord[] = [
+      {
+        id: 'job-1',
+        status: 'PUBLISHED',
+        title: 'Backend Developer',
+        matches: [{ overallScore: '92.50' }],
+      },
+    ];
+
+    prisma.job.findMany.mockResolvedValue(items);
+    prisma.job.count.mockResolvedValue(1);
+    prisma.$transaction.mockResolvedValue([items, 1]);
+
+    const result = await serviceResult<DiscoveryResult>(() =>
+      service.discover('candidate-user', {}),
+    );
+
+    expect(prisma.job.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          matches: {
+            where: {
+              candidate: {
+                is: {
+                  userId: 'candidate-user',
+                },
+              },
+            },
+            select: {
+              overallScore: true,
+            },
+          },
+        }),
+      }),
+    );
+
+    expect(result.items[0]?.matchScore).toBe('92.50');
+    expect(result.items[0]).not.toHaveProperty('matches');
   });
 
   it('should pause a published job', async () => {
@@ -1195,6 +1329,7 @@ describe('JobsService', () => {
     });
 
     expect(result.status).toBe('PAUSED');
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should resume a paused job', async () => {
@@ -1233,6 +1368,7 @@ describe('JobsService', () => {
     });
 
     expect(result.status).toBe('PUBLISHED');
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should close a paused job', async () => {
@@ -1269,8 +1405,8 @@ describe('JobsService', () => {
         },
       },
     });
-
     expect(result.status).toBe('CLOSED');
+    expect(matchingServiceMock.recalculateJob).toHaveBeenCalledTimes(1);
   });
 
   it('should reopen a closed job as draft', async () => {

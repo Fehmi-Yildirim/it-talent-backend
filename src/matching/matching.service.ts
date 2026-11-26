@@ -1,0 +1,508 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma/client';
+import { JobStatus } from '../../generated/prisma/enums';
+import { PrismaService } from '../database/prisma.service';
+
+type CandidateSkillForMatching = {
+    skillId: string;
+    proficiencyLevel: number;
+    skill: { name: string };
+};
+
+type JobRequirementForMatching = {
+    skillId: string;
+    minimumLevel: number;
+    required: boolean;
+    weight: Prisma.Decimal | null;
+    skill: { name: string };
+};
+
+@Injectable()
+export class MatchingService {
+    constructor(private readonly prisma: PrismaService) { }
+
+    async recalculateCandidate(candidateId: string) {
+        const candidate = await this.prisma.candidate.findUnique({
+            where: { id: candidateId },
+            include: {
+                candidateSkills: {
+                    include: {
+                        skill: { select: { name: true } },
+                    },
+                },
+            },
+        });
+
+        if (!candidate) {
+            throw new NotFoundException('Candidate not found');
+        }
+
+        const now = new Date();
+
+        const jobs = await this.prisma.job.findMany({
+            where: {
+                status: JobStatus.PUBLISHED,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+            include: {
+                requirements: {
+                    include: {
+                        skill: { select: { name: true } },
+                    },
+                },
+            },
+        });
+
+        for (const job of jobs) {
+            if (job.requirements.length === 0) {
+                await this.prisma.match.deleteMany({
+                    where: { candidateId, jobId: job.id },
+                });
+                continue;
+            }
+
+            const result = this.calculateSkillScore(
+                candidate.candidateSkills,
+                job.requirements,
+            );
+
+            await this.saveMatch(candidateId, job.id, result);
+        }
+
+        return {
+            calculated: jobs.filter((job) => job.requirements.length > 0).length,
+        };
+    }
+
+    async recalculateJob(jobId: string) {
+        const now = new Date();
+
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                status: JobStatus.PUBLISHED,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+            include: {
+                requirements: {
+                    include: {
+                        skill: { select: { name: true } },
+                    },
+                },
+            },
+        });
+
+        if (!job || job.requirements.length === 0) {
+            await this.prisma.match.deleteMany({ where: { jobId } });
+            return { calculated: 0 };
+        }
+
+        const candidates = await this.prisma.candidate.findMany({
+            include: {
+                candidateSkills: {
+                    include: {
+                        skill: { select: { name: true } },
+                    },
+                },
+            },
+        });
+
+        for (const candidate of candidates) {
+            const result = this.calculateSkillScore(
+                candidate.candidateSkills,
+                job.requirements,
+            );
+
+            await this.saveMatch(candidate.id, job.id, result);
+        }
+
+        return { calculated: candidates.length };
+    }
+
+    private calculateSkillScore(
+        candidateSkills: CandidateSkillForMatching[],
+        requirements: JobRequirementForMatching[],
+    ) {
+        const candidateSkillsById = new Map(
+            candidateSkills.map((skill) => [skill.skillId, skill]),
+        );
+
+        let weightedScore = 0;
+        let totalWeight = 0;
+
+        const strengths: Array<Record<string, unknown>> = [];
+        const gaps: Array<Record<string, unknown>> = [];
+
+        for (const requirement of requirements) {
+            const candidateSkill = candidateSkillsById.get(requirement.skillId);
+
+            const defaultWeight = requirement.required ? 2 : 1;
+            const configuredWeight = requirement.weight
+                ? Number(requirement.weight)
+                : defaultWeight;
+
+            const weight =
+                Number.isFinite(configuredWeight) && configuredWeight > 0
+                    ? configuredWeight
+                    : defaultWeight;
+
+            const minimumLevel = Math.max(requirement.minimumLevel, 1);
+            const candidateLevel = candidateSkill?.proficiencyLevel ?? null;
+
+            const ratio = candidateLevel
+                ? Math.min(candidateLevel / minimumLevel, 1)
+                : 0;
+
+            weightedScore += ratio * weight;
+            totalWeight += weight;
+
+            if (candidateLevel !== null && candidateLevel >= minimumLevel) {
+                strengths.push({
+                    skill: requirement.skill.name,
+                    candidateLevel,
+                    requiredLevel: minimumLevel,
+                    required: requirement.required,
+                });
+            } else {
+                gaps.push({
+                    skill: requirement.skill.name,
+                    candidateLevel,
+                    requiredLevel: minimumLevel,
+                    required: requirement.required,
+                });
+            }
+        }
+
+        const score =
+            totalWeight > 0
+                ? Math.round((weightedScore / totalWeight) * 10000) / 100
+                : 0;
+
+        return {
+            score,
+            explanation: {
+                algorithm: 'weighted-skill-v1',
+                strengths,
+                gaps,
+                requirementsCount: requirements.length,
+            },
+        };
+    }
+
+    private async saveMatch(
+        candidateId: string,
+        jobId: string,
+        result: {
+            score: number;
+            explanation: {
+                algorithm: string;
+                strengths: Array<Record<string, unknown>>;
+                gaps: Array<Record<string, unknown>>;
+                requirementsCount: number;
+            };
+        },
+    ) {
+        const explanation = result.explanation as Prisma.InputJsonValue;
+
+        await this.prisma.match.upsert({
+            where: {
+                candidateId_jobId: { candidateId, jobId },
+            },
+            create: {
+                candidateId,
+                jobId,
+                overallScore: result.score,
+                skillScore: result.score,
+                explanation,
+                calculatedAt: new Date(),
+            },
+            update: {
+                overallScore: result.score,
+                skillScore: result.score,
+                explanation,
+                calculatedAt: new Date(),
+            },
+        });
+    }
+
+    async getMyMatches(userId: string, page: number, limit: number) {
+        const candidate = await this.prisma.candidate.findUnique({
+            where: { userId },
+            select: { id: true },
+        });
+
+        if (!candidate) {
+            throw new NotFoundException('Candidate not found');
+        }
+
+        const now = new Date();
+        const where = {
+            candidateId: candidate.id,
+            job: {
+                status: JobStatus.PUBLISHED,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+        };
+
+        const [data, total] = await Promise.all([
+            this.prisma.match.findMany({
+                where,
+                include: {
+                    job: {
+                        include: {
+                            company: true,
+                            requirements: {
+                                include: {
+                                    skill: { select: { name: true } },
+                                },
+                            },
+                        },
+                    },
+                },
+                orderBy: [
+                    { overallScore: 'desc' },
+                    { calculatedAt: 'desc' },
+                ],
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+            this.prisma.match.count({ where }),
+        ]);
+
+        return {
+            data,
+            meta: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+    }
+
+    async getRecruiterJobs(userId: string) {
+        const recruiter = await this.prisma.recruiter.findUnique({
+            where: { userId },
+            select: { companyId: true },
+        });
+
+        if (!recruiter?.companyId) {
+            throw new NotFoundException('Recruiter or company not found');
+        }
+
+        const now = new Date();
+
+        const jobs = await this.prisma.job.findMany({
+            where: {
+                companyId: recruiter.companyId,
+                status: JobStatus.PUBLISHED,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+            select: {
+                id: true,
+                title: true,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+
+        if (jobs.length === 0) {
+            return { data: [] };
+        }
+
+        const matches = await this.prisma.match.findMany({
+            where: {
+                jobId: {
+                    in: jobs.map((job) => job.id),
+                },
+            },
+            select: {
+                jobId: true,
+                overallScore: true,
+            },
+        });
+
+        const countsByJob = new Map<
+            string,
+            {
+                matchCount: number;
+                strongMatchCount: number;
+                partialMatchCount: number;
+                noMatchCount: number;
+            }
+        >();
+
+        for (const job of jobs) {
+            countsByJob.set(job.id, {
+                matchCount: 0,
+                strongMatchCount: 0,
+                partialMatchCount: 0,
+                noMatchCount: 0,
+            });
+        }
+
+        for (const match of matches) {
+            const counts = countsByJob.get(match.jobId);
+
+            if (!counts) {
+                continue;
+            }
+
+            counts.matchCount += 1;
+
+            const score = Number(match.overallScore);
+
+            if (score >= 80) {
+                counts.strongMatchCount += 1;
+            } else if (score > 0) {
+                counts.partialMatchCount += 1;
+            } else {
+                counts.noMatchCount += 1;
+            }
+        }
+
+        return {
+            data: jobs.map((job) => ({
+                ...job,
+                ...countsByJob.get(job.id),
+            })),
+        };
+    }
+
+    async getCandidatesForJob(
+        userId: string,
+        jobId: string,
+        page: number,
+        limit: number,
+        scoreRange: 'all' | 'strong' | 'partial' | 'none' = 'all',
+    ) {
+        const recruiter = await this.prisma.recruiter.findUnique({
+            where: { userId },
+            select: { companyId: true },
+        });
+
+        if (!recruiter?.companyId) {
+            throw new NotFoundException('Recruiter or company not found');
+        }
+
+        const now = new Date();
+
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                companyId: recruiter.companyId,
+                status: JobStatus.PUBLISHED,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+            select: { id: true },
+        });
+
+        if (!job) {
+            throw new NotFoundException('Job not found');
+        }
+
+        const where: Prisma.MatchWhereInput = {
+            jobId: job.id,
+        };
+
+        switch (scoreRange) {
+            case 'strong':
+                where.overallScore = { gte: 80 };
+                break;
+
+            case 'partial':
+                where.overallScore = { gt: 0, lt: 80 };
+                break;
+
+            case 'none':
+                where.overallScore = { equals: 0 };
+                break;
+
+            case 'all':
+            default:
+                break;
+        }
+
+        const [data, total] = await Promise.all([
+            this.prisma.match.findMany({
+                where,
+                include: {
+                    candidate: {
+                        include: {
+                            user: {
+                                select: {
+                                    firstName: true,
+                                    lastName: true,
+                                },
+                            },
+                            candidateSkills: {
+                                include: {
+                                    skill: { select: { name: true } },
+                                },
+                            },
+                        },
+                    },
+                },
+                orderBy: [
+                    { overallScore: 'desc' },
+                    { calculatedAt: 'desc' },
+                ],
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+            this.prisma.match.count({ where }),
+        ]);
+
+        return {
+            data,
+            meta: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+    }
+
+    async getMyMatchForJob(userId: string, jobId: string) {
+        const candidate = await this.prisma.candidate.findUnique({
+            where: { userId },
+            select: { id: true },
+        });
+
+        if (!candidate) {
+            throw new NotFoundException('Candidate not found');
+        }
+
+        const now = new Date();
+
+        const job = await this.prisma.job.findFirst({
+            where: {
+                id: jobId,
+                status: JobStatus.PUBLISHED,
+                OR: [
+                    { expiresAt: null },
+                    { expiresAt: { gt: now } },
+                ],
+            },
+            select: { id: true },
+        });
+
+        if (!job) {
+            throw new NotFoundException('Job not found');
+        }
+
+        const match = await this.prisma.match.findUnique({
+            where: {
+                candidateId_jobId: {
+                    candidateId: candidate.id,
+                    jobId: job.id,
+                },
+            },
+        });
+
+        return { data: match };
+    }
+}
+

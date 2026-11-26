@@ -18,6 +18,7 @@ import { SettingsModule } from './settings/settings.module';
 import { SkillsModule } from './skills/skills.module';
 import { UsersModule } from './users/users.module';
 import { ContentModule } from './content/content.module';
+import { MatchingModule } from './matching/matching.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ContentModule } from './content/content.module';
       isGlobal: true,
       validate: validateEnvironment,
     }),
+
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -39,6 +41,7 @@ import { ContentModule } from './content/content.module';
           ttl: configService.getOrThrow<number>('AUTH_REGISTER_TTL_MS'),
           limit: configService.getOrThrow<number>('AUTH_REGISTER_LIMIT'),
         },
+
       ],
     }),
     ScheduleModule.forRoot(),
@@ -55,6 +58,7 @@ import { ContentModule } from './content/content.module';
     DashboardModule,
     SettingsModule,
     ContentModule,
+    MatchingModule,
   ],
   controllers: [AppController],
   providers: [

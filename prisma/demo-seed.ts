@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import * as argon2 from 'argon2';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../generated/prisma/client';
+import { Prisma, PrismaClient } from '../generated/prisma/client';
 
 const IDS = {
   company: '11111111-1111-4111-8111-111111111111',
@@ -37,6 +37,17 @@ const IDS = {
     '44444444-4444-4444-8444-444444444450',
     '44444444-4444-4444-8444-444444444451',
     '44444444-4444-4444-8444-444444444452',
+    '44444444-4444-4444-8444-444444444453',
+    '44444444-4444-4444-8444-444444444454',
+    '44444444-4444-4444-8444-444444444455',
+    '44444444-4444-4444-8444-444444444456',
+    '44444444-4444-4444-8444-444444444457',
+    '44444444-4444-4444-8444-444444444458',
+    '44444444-4444-4444-8444-444444444459',
+    '44444444-4444-4444-8444-444444444460',
+    '44444444-4444-4444-8444-444444444461',
+    '44444444-4444-4444-8444-444444444462',
+    '44444444-4444-4444-8444-444444444463',
   ],
 
   skills: {
@@ -159,7 +170,11 @@ const jobsData: {
   description: string;
   location: string;
   employmentType:
-  'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'FREELANCE' | 'INTERNSHIP';
+  | 'FULL_TIME'
+  | 'PART_TIME'
+  | 'CONTRACT'
+  | 'FREELANCE'
+  | 'INTERNSHIP';
   workMode: 'REMOTE' | 'HYBRID' | 'ONSITE' | 'FLEXIBLE';
   salaryMin: number;
   salaryMax: number;
@@ -352,6 +367,174 @@ const jobsData: {
         { key: 'mongodb', level: 2, required: false, weight: 0.5 },
       ],
     },
+
+    // Additional demo jobs for candidate-match pagination.
+
+    {
+      title: 'React UI Developer',
+      description:
+        'Build reusable React components and accessible user interfaces for modern web applications.',
+      location: 'Amsterdam',
+      employmentType: 'FULL_TIME',
+      workMode: 'HYBRID',
+      salaryMin: 43000,
+      salaryMax: 57000,
+      requirements: [
+        { key: 'react', level: 3, required: true, weight: 1 },
+        { key: 'typescript', level: 3, required: true, weight: 1 },
+        { key: 'git', level: 2, required: true, weight: 0.5 },
+      ],
+    },
+    {
+      title: 'Frontend Engineer',
+      description:
+        'Develop maintainable frontend features with React, TypeScript and automated testing.',
+      location: 'Utrecht',
+      employmentType: 'FULL_TIME',
+      workMode: 'REMOTE',
+      salaryMin: 44000,
+      salaryMax: 59000,
+      requirements: [
+        { key: 'react', level: 4, required: true, weight: 1 },
+        { key: 'typescript', level: 3, required: true, weight: 1 },
+        { key: 'jest', level: 2, required: false, weight: 0.5 },
+      ],
+    },
+    {
+      title: 'Junior Frontend Developer',
+      description:
+        'Help create responsive web interfaces and learn from an experienced frontend team.',
+      location: 'Rotterdam',
+      employmentType: 'FULL_TIME',
+      workMode: 'HYBRID',
+      salaryMin: 36000,
+      salaryMax: 46000,
+      requirements: [
+        { key: 'react', level: 2, required: true, weight: 1 },
+        { key: 'typescript', level: 2, required: true, weight: 1 },
+        { key: 'git', level: 2, required: false, weight: 0.5 },
+      ],
+    },
+    {
+      title: 'React and TypeScript Specialist',
+      description:
+        'Create high-quality applications with React and TypeScript and contribute to frontend standards.',
+      location: 'Amsterdam',
+      employmentType: 'CONTRACT',
+      workMode: 'FLEXIBLE',
+      salaryMin: 50000,
+      salaryMax: 67000,
+      requirements: [
+        { key: 'react', level: 4, required: true, weight: 1 },
+        { key: 'typescript', level: 4, required: true, weight: 1 },
+        { key: 'jest', level: 3, required: true, weight: 0.5 },
+      ],
+    },
+    {
+      title: 'Web Application Developer',
+      description:
+        'Work on modern web applications with a focus on frontend quality and reliable testing.',
+      location: 'Haarlem',
+      employmentType: 'FULL_TIME',
+      workMode: 'HYBRID',
+      salaryMin: 42000,
+      salaryMax: 56000,
+      requirements: [
+        { key: 'react', level: 3, required: true, weight: 1 },
+        { key: 'jest', level: 2, required: true, weight: 0.5 },
+        { key: 'git', level: 3, required: true, weight: 0.5 },
+      ],
+    },
+    {
+      title: 'Frontend Software Engineer',
+      description:
+        'Build scalable frontend solutions and collaborate with backend engineers and designers.',
+      location: 'Leiden',
+      employmentType: 'FULL_TIME',
+      workMode: 'REMOTE',
+      salaryMin: 45000,
+      salaryMax: 60000,
+      requirements: [
+        { key: 'react', level: 3, required: true, weight: 1 },
+        { key: 'typescript', level: 4, required: true, weight: 1 },
+        { key: 'git', level: 3, required: false, weight: 0.5 },
+      ],
+    },
+    {
+      title: 'UI Engineer',
+      description:
+        'Deliver polished user experiences with reusable components and a strong focus on code quality.',
+      location: 'Amsterdam',
+      employmentType: 'FULL_TIME',
+      workMode: 'ONSITE',
+      salaryMin: 43000,
+      salaryMax: 58000,
+      requirements: [
+        { key: 'react', level: 3, required: true, weight: 1 },
+        { key: 'typescript', level: 3, required: true, weight: 1 },
+        { key: 'jest', level: 3, required: false, weight: 0.5 },
+      ],
+    },
+    {
+      title: 'Frontend Test Engineer',
+      description:
+        'Improve frontend reliability through component testing and collaboration with development teams.',
+      location: 'Utrecht',
+      employmentType: 'FULL_TIME',
+      workMode: 'HYBRID',
+      salaryMin: 41000,
+      salaryMax: 55000,
+      requirements: [
+        { key: 'jest', level: 3, required: true, weight: 1 },
+        { key: 'typescript', level: 3, required: true, weight: 1 },
+        { key: 'git', level: 2, required: false, weight: 0.5 },
+      ],
+    },
+    {
+      title: 'JavaScript Application Developer',
+      description:
+        'Develop modern browser-based applications and contribute to frontend architecture.',
+      location: 'Amsterdam',
+      employmentType: 'FULL_TIME',
+      workMode: 'REMOTE',
+      salaryMin: 42000,
+      salaryMax: 57000,
+      requirements: [
+        { key: 'react', level: 3, required: true, weight: 1 },
+        { key: 'typescript', level: 3, required: true, weight: 1 },
+        { key: 'git', level: 4, required: false, weight: 0.5 },
+      ],
+    },
+    {
+      title: 'Frontend Product Developer',
+      description:
+        'Collaborate with product and design teams to build accessible and maintainable interfaces.',
+      location: 'Amstelveen',
+      employmentType: 'FULL_TIME',
+      workMode: 'HYBRID',
+      salaryMin: 44000,
+      salaryMax: 59000,
+      requirements: [
+        { key: 'react', level: 4, required: true, weight: 1 },
+        { key: 'typescript', level: 3, required: true, weight: 1 },
+        { key: 'jest', level: 2, required: false, weight: 0.5 },
+      ],
+    },
+    {
+      title: 'Web Frontend Specialist',
+      description:
+        'Maintain and extend a modern frontend platform with reusable components and automated tests.',
+      location: 'Haarlem',
+      employmentType: 'FULL_TIME',
+      workMode: 'FLEXIBLE',
+      salaryMin: 45000,
+      salaryMax: 61000,
+      requirements: [
+        { key: 'react', level: 3, required: true, weight: 1 },
+        { key: 'typescript', level: 4, required: true, weight: 1 },
+        { key: 'git', level: 3, required: true, weight: 0.5 },
+      ],
+    },
   ];
 
 function generateSkillSlug(name: string): string {
@@ -361,6 +544,150 @@ function generateSkillSlug(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Creates or updates deterministic match records for the demo candidates.
+ * The calculation follows the weighted-skill-v1 algorithm used by MatchingService.
+ */
+async function seedCandidateMatches(
+  tx: Prisma.TransactionClient,
+  candidateProfileIds: string[],
+): Promise<void> {
+  const jobs = await tx.job.findMany({
+    where: {
+      id: {
+        in: IDS.jobs,
+      },
+    },
+    include: {
+      requirements: {
+        include: {
+          skill: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  for (const candidateId of candidateProfileIds) {
+    const candidateSkills = await tx.candidateSkill.findMany({
+      where: { candidateId },
+      select: {
+        skillId: true,
+        proficiencyLevel: true,
+      },
+    });
+
+    const candidateSkillsById = new Map(
+      candidateSkills.map((skill) => [
+        skill.skillId,
+        skill.proficiencyLevel,
+      ]),
+    );
+
+    for (const job of jobs) {
+      if (job.requirements.length === 0) {
+        continue;
+      }
+
+      let weightedScore = 0;
+      let totalWeight = 0;
+
+      const strengths: {
+        skill: string;
+        candidateLevel: number | null;
+        requiredLevel: number;
+        required: boolean;
+      }[] = [];
+
+      const gaps: {
+        skill: string;
+        candidateLevel: number | null;
+        requiredLevel: number;
+        required: boolean;
+      }[] = [];
+
+      for (const requirement of job.requirements) {
+        const candidateLevel =
+          candidateSkillsById.get(requirement.skillId) ?? null;
+
+        const defaultWeight = requirement.required ? 2 : 1;
+        const configuredWeight =
+          requirement.weight === null
+            ? defaultWeight
+            : Number(requirement.weight);
+
+        const weight =
+          Number.isFinite(configuredWeight) && configuredWeight > 0
+            ? configuredWeight
+            : defaultWeight;
+
+        const minimumLevel = Math.max(requirement.minimumLevel, 1);
+
+        const ratio = candidateLevel
+          ? Math.min(candidateLevel / minimumLevel, 1)
+          : 0;
+
+        weightedScore += ratio * weight;
+        totalWeight += weight;
+
+        const detail = {
+          skill: requirement.skill.name,
+          candidateLevel,
+          requiredLevel: minimumLevel,
+          required: requirement.required,
+        };
+
+        if (
+          candidateLevel !== null &&
+          candidateLevel >= minimumLevel
+        ) {
+          strengths.push(detail);
+        } else {
+          gaps.push(detail);
+        }
+      }
+
+      const score =
+        totalWeight > 0
+          ? Math.round((weightedScore / totalWeight) * 10000) / 100
+          : 0;
+
+      const explanation = {
+        algorithm: 'weighted-skill-v1',
+        strengths,
+        gaps,
+        requirementsCount: job.requirements.length,
+      } as Prisma.InputJsonValue;
+
+      await tx.match.upsert({
+        where: {
+          candidateId_jobId: {
+            candidateId,
+            jobId: job.id,
+          },
+        },
+        create: {
+          candidateId,
+          jobId: job.id,
+          overallScore: score,
+          skillScore: score,
+          explanation,
+          calculatedAt: new Date(),
+        },
+        update: {
+          overallScore: score,
+          skillScore: score,
+          explanation,
+          calculatedAt: new Date(),
+        },
+      });
+    }
+  }
 }
 
 async function main() {
@@ -449,7 +776,10 @@ async function main() {
             !recruiterByEmail ||
             recruiterById.id !== recruiterByEmail.id ||
             recruiterById.role !== 'RECRUITER' ||
-            !(await argon2.verify(recruiterById.passwordHash, recruiterPassword))
+            !(await argon2.verify(
+              recruiterById.passwordHash,
+              recruiterPassword,
+            ))
           ) {
             throw new Error(
               'Recruiter account collision or password mismatch detected.',
@@ -534,7 +864,10 @@ async function main() {
               !userByEmail ||
               userById.id !== userByEmail.id ||
               userById.role !== 'CANDIDATE' ||
-              !(await argon2.verify(userById.passwordHash, candidatePassword))
+              !(await argon2.verify(
+                userById.passwordHash,
+                candidatePassword,
+              ))
             ) {
               throw new Error(
                 `Candidate account collision or password mismatch detected for candidate ${index + 1}.`,
@@ -600,7 +933,10 @@ async function main() {
 
         // SKILLS
 
-        const skillIds: Record<SkillKey, string> = {} as Record<SkillKey, string>;
+        const skillIds: Record<SkillKey, string> = {} as Record<
+          SkillKey,
+          string
+        >;
 
         for (const key of Object.keys(skillNames) as SkillKey[]) {
           const skill = skillNames[key];
@@ -736,6 +1072,10 @@ async function main() {
           }
         }
 
+        // MATCHES
+
+        await seedCandidateMatches(tx, candidateProfileIds);
+
         // APPLICATIONS
 
         const applications = [
@@ -802,7 +1142,7 @@ async function main() {
 
     console.log('Demo seed completed successfully.');
     console.log(
-      'Created or verified demo company, accounts, profiles, skills, 12 jobs and applications.',
+      'Created or verified demo company, accounts, profiles, skills, 23 jobs, match records and applications.',
     );
   } finally {
     await prisma.$disconnect();

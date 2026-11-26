@@ -16,10 +16,14 @@ import { UpdateJobDto } from './dto/update-job.dto';
 import { UpdateJobRequirementsDto } from './dto/update-job-requirements.dto';
 import { CreateJobRequirementDto } from './dto/create-job-requirement.dto';
 import { UpdateJobRequirementDto } from './dto/update-job-requirement.dto';
+import { MatchingService } from '../matching/matching.service';
 
 @Injectable()
 export class JobsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly matchingService: MatchingService,
+  ) { }
 
   // Create a Job
   async create(userId: string, dto: CreateJobDto) {
@@ -205,6 +209,19 @@ export class JobsService {
           },
         },
       },
+      ...(query.onlyMatches
+        ? {
+          matches: {
+            some: {
+              candidate: {
+                is: {
+                  userId: candidateUserId,
+                },
+              },
+            },
+          },
+        }
+        : {}),
     };
 
     // General search across job title, description, company,
@@ -391,6 +408,18 @@ export class JobsService {
               skill: true,
             },
           },
+          matches: {
+            where: {
+              candidate: {
+                is: {
+                  userId: candidateUserId,
+                },
+              },
+            },
+            select: {
+              overallScore: true,
+            },
+          },
         },
         orderBy,
         skip,
@@ -402,7 +431,10 @@ export class JobsService {
     ]);
 
     return {
-      items,
+      items: items.map(({ matches, ...job }) => ({
+        ...job,
+        matchScore: matches[0]?.overallScore.toString() ?? null,
+      })),
       total,
       page,
       limit,
@@ -627,12 +659,16 @@ export class JobsService {
         : {}),
     };
 
-    return this.prisma.job.update({
+    const updatedJob = await this.prisma.job.update({
       where: {
         id: jobId,
       },
       data: updateData,
     });
+
+    await this.matchingService.recalculateJob(jobId);
+
+    return updatedJob;
   }
 
   // Publish a draft job
@@ -673,7 +709,7 @@ export class JobsService {
       throw new BadRequestException('Only draft jobs can be published');
     }
 
-    return this.prisma.job.update({
+    const publishedJob = await this.prisma.job.update({
       where: {
         id: job.id,
       },
@@ -689,6 +725,10 @@ export class JobsService {
         },
       },
     });
+
+    await this.matchingService.recalculateJob(job.id);
+
+    return publishedJob;
   }
 
   // Pause a published job
@@ -729,7 +769,7 @@ export class JobsService {
       throw new BadRequestException('Only published jobs can be paused');
     }
 
-    return this.prisma.job.update({
+    const pausedJob = await this.prisma.job.update({
       where: {
         id: job.id,
       },
@@ -744,6 +784,10 @@ export class JobsService {
         },
       },
     });
+
+    await this.matchingService.recalculateJob(job.id);
+
+    return pausedJob;
   }
 
   // Resume a paused job
@@ -784,7 +828,7 @@ export class JobsService {
       throw new BadRequestException('Only paused jobs can be resumed');
     }
 
-    return this.prisma.job.update({
+    const resumedJob = await this.prisma.job.update({
       where: {
         id: job.id,
       },
@@ -799,6 +843,10 @@ export class JobsService {
         },
       },
     });
+
+    await this.matchingService.recalculateJob(job.id);
+
+    return resumedJob;
   }
 
   // Close a published or paused job
@@ -841,7 +889,7 @@ export class JobsService {
       );
     }
 
-    return this.prisma.job.update({
+    const closedJob = await this.prisma.job.update({
       where: {
         id: job.id,
       },
@@ -856,6 +904,10 @@ export class JobsService {
         },
       },
     });
+
+    await this.matchingService.recalculateJob(job.id);
+
+    return closedJob;
   }
 
   // Reopen a closed job as draft
@@ -1047,7 +1099,7 @@ export class JobsService {
       }
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedRequirements = await this.prisma.$transaction(async (tx) => {
       await tx.jobRequirement.deleteMany({
         where: {
           jobId: job.id,
@@ -1090,6 +1142,10 @@ export class JobsService {
         ],
       });
     });
+
+    await this.matchingService.recalculateJob(job.id);
+
+    return updatedRequirements;
   }
 
   // Add one job requirement
@@ -1162,7 +1218,7 @@ export class JobsService {
       );
     }
 
-    return this.prisma.jobRequirement.create({
+    const createdRequirement = await this.prisma.jobRequirement.create({
       data: {
         jobId: job.id,
         skillId: dto.skillId,
@@ -1173,6 +1229,10 @@ export class JobsService {
         skill: true,
       },
     });
+
+    await this.matchingService.recalculateJob(job.id);
+
+    return createdRequirement;
   }
 
   // Update one job requirement
@@ -1249,7 +1309,7 @@ export class JobsService {
         : {}),
     };
 
-    return this.prisma.jobRequirement.update({
+    const updatedRequirement = await this.prisma.jobRequirement.update({
       where: {
         id: requirement.id,
       },
@@ -1258,6 +1318,10 @@ export class JobsService {
         skill: true,
       },
     });
+
+    await this.matchingService.recalculateJob(job.id);
+
+    return updatedRequirement;
   }
 
   // Remove one job requirement
@@ -1313,6 +1377,8 @@ export class JobsService {
         id: requirement.id,
       },
     });
+
+    await this.matchingService.recalculateJob(job.id);
 
     return {
       message: 'Job requirement removed successfully',

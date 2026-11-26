@@ -62,11 +62,18 @@ export class MatchingController {
         );
     }
 
+    @Get('recruiter/jobs')
+    @Roles(UserRole.RECRUITER)
+    @ApiOperation({ summary: 'Get published jobs and match counts for the recruiter company' })
+    @ApiResponse({ status: 200, description: 'Recruiter jobs and match counts returned' })
+    getRecruiterJobs(@Req() req: AuthenticatedRequest) {
+        return this.matchingService.getRecruiterJobs(req.user.id);
+    }
+
     @Get('jobs/:jobId/candidates')
     @Roles(UserRole.RECRUITER)
     @ApiOperation({ summary: 'Get matching candidates for a company job' })
     @ApiResponse({ status: 200, description: 'Matching candidates returned' })
-
     getCandidatesForJob(
         @Req() req: AuthenticatedRequest,
         @Param('jobId') jobId: string,

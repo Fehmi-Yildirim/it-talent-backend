@@ -139,8 +139,6 @@ describe('17 - Matching (e2e)', () => {
 
         jobId = jobResponse.body.id;
 
-        jobId = jobResponse.body.id;
-
         await prisma.jobRequirement.updateMany({
             where: {
                 jobId,
@@ -324,12 +322,6 @@ describe('17 - Matching (e2e)', () => {
                     where: { candidateId },
                 });
 
-                await prisma.candidateSkill.deleteMany({
-                    where: { candidateId },
-                });
-            }
-
-            if (candidateId) {
                 await prisma.candidateSkill.deleteMany({
                     where: { candidateId },
                 });

@@ -225,6 +225,96 @@ describe('MatchingService', () => {
         );
     });
 
+    describe('getRecruiterJobs', () => {
+        beforeEach(() => {
+            prismaMock.recruiter.findUnique.mockResolvedValue({
+                companyId: 'company-1',
+            });
+
+            prismaMock.job.findMany.mockResolvedValue([
+                { id: 'job-1', title: 'Frontend Developer' },
+                { id: 'job-2', title: 'Backend Developer' },
+            ]);
+
+            prismaMock.match.findMany.mockResolvedValue([
+                { jobId: 'job-1', overallScore: 90 },
+                { jobId: 'job-1', overallScore: 80 },
+                { jobId: 'job-1', overallScore: 50 },
+                { jobId: 'job-1', overallScore: 0 },
+            ]);
+        });
+
+        it('should return published company jobs with match counts', async () => {
+            const result = await service.getRecruiterJobs('recruiter-user-1');
+
+            expect(result).toEqual({
+                data: [
+                    {
+                        id: 'job-1',
+                        title: 'Frontend Developer',
+                        matchCount: 4,
+                        strongMatchCount: 2,
+                        partialMatchCount: 1,
+                        noMatchCount: 1,
+                    },
+                    {
+                        id: 'job-2',
+                        title: 'Backend Developer',
+                        matchCount: 0,
+                        strongMatchCount: 0,
+                        partialMatchCount: 0,
+                        noMatchCount: 0,
+                    },
+                ],
+            });
+
+            expect(prismaMock.job.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: expect.objectContaining({
+                        companyId: 'company-1',
+                        status: 'PUBLISHED',
+                    }) as Record<string, unknown>,
+                }),
+            );
+
+            expect(prismaMock.match.findMany).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: {
+                        jobId: {
+                            in: ['job-1', 'job-2'],
+                        },
+                    },
+                    select: {
+                        jobId: true,
+                        overallScore: true,
+                    },
+                }),
+            );
+        });
+
+        it('should reject a recruiter without a company', async () => {
+            prismaMock.recruiter.findUnique.mockResolvedValue({
+                companyId: null,
+            });
+
+            await expect(
+                service.getRecruiterJobs('recruiter-user-1'),
+            ).rejects.toThrow('Recruiter or company not found');
+
+            expect(prismaMock.job.findMany).not.toHaveBeenCalled();
+            expect(prismaMock.match.findMany).not.toHaveBeenCalled();
+        });
+
+        it('should return an empty list when the company has no published jobs', async () => {
+            prismaMock.job.findMany.mockResolvedValue([]);
+
+            const result = await service.getRecruiterJobs('recruiter-user-1');
+
+            expect(result).toEqual({ data: [] });
+            expect(prismaMock.match.findMany).not.toHaveBeenCalled();
+        });
+    });
+
     describe('getCandidatesForJob', () => {
         beforeEach(() => {
             prismaMock.recruiter.findUnique.mockResolvedValue({

@@ -280,6 +280,95 @@ export class MatchingService {
         };
     }
 
+    async getRecruiterJobs(userId: string) {
+        const recruiter = await this.prisma.recruiter.findUnique({
+            where: { userId },
+            select: { companyId: true },
+        });
+
+        if (!recruiter?.companyId) {
+            throw new NotFoundException('Recruiter or company not found');
+        }
+
+        const now = new Date();
+
+        const jobs = await this.prisma.job.findMany({
+            where: {
+                companyId: recruiter.companyId,
+                status: JobStatus.PUBLISHED,
+                OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+            },
+            select: {
+                id: true,
+                title: true,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+
+        if (jobs.length === 0) {
+            return { data: [] };
+        }
+
+        const matches = await this.prisma.match.findMany({
+            where: {
+                jobId: {
+                    in: jobs.map((job) => job.id),
+                },
+            },
+            select: {
+                jobId: true,
+                overallScore: true,
+            },
+        });
+
+        const countsByJob = new Map<
+            string,
+            {
+                matchCount: number;
+                strongMatchCount: number;
+                partialMatchCount: number;
+                noMatchCount: number;
+            }
+        >();
+
+        for (const job of jobs) {
+            countsByJob.set(job.id, {
+                matchCount: 0,
+                strongMatchCount: 0,
+                partialMatchCount: 0,
+                noMatchCount: 0,
+            });
+        }
+
+        for (const match of matches) {
+            const counts = countsByJob.get(match.jobId);
+
+            if (!counts) {
+                continue;
+            }
+
+            counts.matchCount += 1;
+
+            const score = Number(match.overallScore);
+
+            if (score >= 80) {
+                counts.strongMatchCount += 1;
+            } else if (score > 0) {
+                counts.partialMatchCount += 1;
+            } else {
+                counts.noMatchCount += 1;
+            }
+        }
+
+        return {
+            data: jobs.map((job) => ({
+                ...job,
+                ...countsByJob.get(job.id),
+            })),
+        };
+    }
 
     async getCandidatesForJob(
         userId: string,
@@ -376,7 +465,6 @@ export class MatchingService {
         };
     }
 
-
     async getMyMatchForJob(userId: string, jobId: string) {
         const candidate = await this.prisma.candidate.findUnique({
             where: { userId },
@@ -417,3 +505,4 @@ export class MatchingService {
         return { data: match };
     }
 }
+

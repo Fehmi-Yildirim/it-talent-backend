@@ -232,9 +232,10 @@ export class ContentService {
     data: {
       title?: string;
       content?: Prisma.InputJsonValue;
+      status?: ContentStatus;
     },
     userId: string,
-  ) {
+  ): Promise<Prisma.ContentTranslationGetPayload<Record<string, never>>> {
     this.validateLocale(locale);
 
     if (
@@ -255,8 +256,26 @@ export class ContentService {
     });
 
     if (existing) {
+      const normalizedTitle =
+        data.title !== undefined ? data.title.trim() : undefined;
+
+      const nextTitle = normalizedTitle ?? existing.title;
+      const nextContent = data.content ?? existing.content;
+      const nextStatus = data.status ?? existing.status;
+
+      if (nextStatus === ContentStatus.PUBLISHED) {
+        if (
+          typeof nextTitle !== 'string' ||
+          nextTitle.trim().length === 0 ||
+          !hasMeaningfulTiptapContent(nextContent)
+        ) {
+          throw new BadRequestException(
+            'Translation requires a title and meaningful content',
+          );
+        }
+      }
+
       let slug = existing.slug;
-      const normalizedTitle = data.title?.trim();
 
       if (
         normalizedTitle !== undefined &&
@@ -295,6 +314,13 @@ export class ContentService {
         }
       }
 
+      const publishedAt =
+        nextStatus === ContentStatus.PUBLISHED
+          ? existing.status === ContentStatus.PUBLISHED
+            ? existing.publishedAt ?? new Date()
+            : new Date()
+          : existing.publishedAt;
+
       return this.prisma.contentTranslation.update({
         where: { id: existing.id },
         data: {
@@ -302,6 +328,8 @@ export class ContentService {
           ...(normalizedTitle !== undefined
             ? { title: normalizedTitle }
             : {}),
+          status: nextStatus,
+          publishedAt,
           slug,
           updatedById: userId,
         },
@@ -315,6 +343,17 @@ export class ContentService {
     }
 
     const normalizedTitle = data.title.trim();
+    const nextStatus = data.status ?? ContentStatus.DRAFT;
+
+    if (
+      nextStatus === ContentStatus.PUBLISHED &&
+      !hasMeaningfulTiptapContent(data.content)
+    ) {
+      throw new BadRequestException(
+        'Translation requires a title and meaningful content',
+      );
+    }
+
     const baseSlug = this.slugify(normalizedTitle);
 
     for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
@@ -328,7 +367,9 @@ export class ContentService {
             slug,
             ...data,
             title: normalizedTitle,
-            status: ContentStatus.DRAFT,
+            status: nextStatus,
+            publishedAt:
+              nextStatus === ContentStatus.PUBLISHED ? new Date() : null,
             updatedById: userId,
           },
         });
@@ -345,13 +386,7 @@ export class ContentService {
           });
 
         if (concurrentlyCreated) {
-          return this.prisma.contentTranslation.update({
-            where: { id: concurrentlyCreated.id },
-            data: {
-              ...data,
-              updatedById: userId,
-            },
-          });
+          return this.saveTranslation(pageId, locale, data, userId);
         }
       }
     }
@@ -395,7 +430,12 @@ export class ContentService {
       data: {
         status,
         ...(status === ContentStatus.PUBLISHED
-          ? { publishedAt: new Date() }
+          ? {
+            publishedAt:
+              translation.status === ContentStatus.PUBLISHED
+                ? translation.publishedAt ?? new Date()
+                : new Date(),
+          }
           : {}),
       },
     });

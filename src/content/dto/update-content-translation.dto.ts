@@ -1,5 +1,6 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { Prisma } from '../../../generated/prisma/client';
+import { ContentStatus } from '../../../generated/prisma/enums';
 import { IsTiptapJson } from '../validators/tiptap-json.validator';
 
 export class UpdateContentTranslationDto {
@@ -11,4 +12,8 @@ export class UpdateContentTranslationDto {
   @IsOptional()
   @IsTiptapJson()
   content?: Prisma.InputJsonValue;
+
+  @IsOptional()
+  @IsEnum(ContentStatus)
+  status?: ContentStatus;
 }

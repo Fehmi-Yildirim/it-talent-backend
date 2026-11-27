@@ -29,21 +29,23 @@ describe('Content Admin (e2e)', () => {
     isDemo: false,
   };
 
+  const validTiptapContent = {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'Updated content.' }],
+      },
+    ],
+  };
+
   const privateTranslation = {
     id: 'translation-test-id',
     pageId: 'page-test-id',
     locale: 'nl',
     slug: 'over-deze-app',
     title: 'Over deze app',
-    content: {
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: 'Private content.' }],
-        },
-      ],
-    },
+    content: validTiptapContent,
     status: 'PRIVATE',
     publishedAt: null,
   };
@@ -128,7 +130,48 @@ describe('Content Admin (e2e)', () => {
       .expect(403);
   });
 
-  it('allows an admin to change a translation to PRIVATE', async () => {
+  it('allows an admin to save title, content and status together', async () => {
+    const updatedTranslation = {
+      ...privateTranslation,
+      title: 'Nieuwe titel',
+      content: validTiptapContent,
+      status: 'PUBLISHED',
+      publishedAt: '2026-11-27T15:00:00.000Z',
+    };
+
+    contentServiceMock.saveTranslation.mockResolvedValue(
+      updatedTranslation,
+    );
+
+    const response = await request(app.getHttpServer())
+      .patch('/admin/content/page-test-id/translations/nl')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        title: 'Nieuwe titel',
+        content: validTiptapContent,
+        status: 'PUBLISHED',
+      })
+      .expect(200);
+
+    expect(contentServiceMock.saveTranslation).toHaveBeenCalledWith(
+      'page-test-id',
+      'nl',
+      {
+        title: 'Nieuwe titel',
+        content: validTiptapContent,
+        status: 'PUBLISHED',
+      },
+      adminUser.id,
+    );
+
+    expect(response.body).toMatchObject({
+      title: 'Nieuwe titel',
+      content: validTiptapContent,
+      status: 'PUBLISHED',
+    });
+  });
+
+  it('allows an admin to change a translation to PRIVATE using the separate status endpoint', async () => {
     contentServiceMock.updateStatus.mockResolvedValue(privateTranslation);
 
     const response = await request(app.getHttpServer())
@@ -189,5 +232,32 @@ describe('Content Admin (e2e)', () => {
       .expect(403);
 
     expect(contentServiceMock.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('rejects unauthenticated combined translation updates', async () => {
+    await request(app.getHttpServer())
+      .patch('/admin/content/page-test-id/translations/nl')
+      .send({
+        title: 'Nieuwe titel',
+        content: validTiptapContent,
+        status: 'PUBLISHED',
+      })
+      .expect(401);
+
+    expect(contentServiceMock.saveTranslation).not.toHaveBeenCalled();
+  });
+
+  it('rejects candidate combined translation updates', async () => {
+    await request(app.getHttpServer())
+      .patch('/admin/content/page-test-id/translations/nl')
+      .set('Authorization', `Bearer ${candidateToken}`)
+      .send({
+        title: 'Nieuwe titel',
+        content: validTiptapContent,
+        status: 'PUBLISHED',
+      })
+      .expect(403);
+
+    expect(contentServiceMock.saveTranslation).not.toHaveBeenCalled();
   });
 });

@@ -58,7 +58,7 @@ export class AdminContentController {
     @Param('locale') locale: string,
     @Body() dto: UpdateContentTranslationDto,
     @Req() request: AuthenticatedRequest,
-  ) {
+  ): Promise<Prisma.ContentTranslationGetPayload<Record<string, never>>> {
     return this.contentService.saveTranslation(
       id,
       locale,

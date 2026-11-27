@@ -239,19 +239,22 @@ describe('ContentService', () => {
   });
 
   describe('saveTranslation', () => {
-    it('creates a translation with a single content version and DRAFT status', async () => {
+    it('creates a translation with DRAFT status and no publication date by default', async () => {
       prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
       prismaMock.contentTranslation.findUnique.mockResolvedValue(null);
       prismaMock.contentTranslation.create.mockResolvedValue({
         id: 'translation-1',
       });
 
-      const data = {
-        title: 'Nieuwe titel',
-        content: validTiptapContent,
-      };
-
-      await service.saveTranslation('page-1', 'nl', data, 'user-1');
+      await service.saveTranslation(
+        'page-1',
+        'nl',
+        {
+          title: 'Nieuwe titel',
+          content: validTiptapContent,
+        },
+        'user-1',
+      );
 
       expect(prismaMock.contentTranslation.create).toHaveBeenCalledWith({
         data: {
@@ -261,6 +264,71 @@ describe('ContentService', () => {
           title: 'Nieuwe titel',
           content: validTiptapContent,
           status: ContentStatus.DRAFT,
+          publishedAt: null,
+          updatedById: 'user-1',
+        },
+      });
+    });
+
+    it('creates a translation with the requested status', async () => {
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
+      prismaMock.contentTranslation.findUnique.mockResolvedValue(null);
+      prismaMock.contentTranslation.create.mockResolvedValue({
+        id: 'translation-1',
+      });
+
+      await service.saveTranslation(
+        'page-1',
+        'nl',
+        {
+          title: 'Nieuwe titel',
+          content: validTiptapContent,
+          status: ContentStatus.PRIVATE,
+        },
+        'user-1',
+      );
+
+      expect(prismaMock.contentTranslation.create).toHaveBeenCalledWith({
+        data: {
+          pageId: 'page-1',
+          locale: 'nl',
+          slug: 'nieuwe-titel',
+          title: 'Nieuwe titel',
+          content: validTiptapContent,
+          status: ContentStatus.PRIVATE,
+          publishedAt: null,
+          updatedById: 'user-1',
+        },
+      });
+    });
+
+    it('creates a published translation and records publishedAt', async () => {
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
+      prismaMock.contentTranslation.findUnique.mockResolvedValue(null);
+      prismaMock.contentTranslation.create.mockResolvedValue({
+        id: 'translation-1',
+      });
+
+      await service.saveTranslation(
+        'page-1',
+        'en',
+        {
+          title: 'About this app',
+          content: validTiptapContent,
+          status: ContentStatus.PUBLISHED,
+        },
+        'user-1',
+      );
+
+      expect(prismaMock.contentTranslation.create).toHaveBeenCalledWith({
+        data: {
+          pageId: 'page-1',
+          locale: 'en',
+          slug: 'about-this-app',
+          title: 'About this app',
+          content: validTiptapContent,
+          status: ContentStatus.PUBLISHED,
+          publishedAt: expect.any(Date) as Date,
           updatedById: 'user-1',
         },
       });
@@ -291,9 +359,213 @@ describe('ContentService', () => {
           title: 'About this app',
           content: validTiptapContent,
           status: ContentStatus.DRAFT,
+          publishedAt: null,
           updatedById: 'user-1',
         },
       });
+    });
+
+    it('updates content and status together when publishing an existing translation', async () => {
+      const previousPublishedAt = new Date('2026-01-01T10:00:00.000Z');
+
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+        pageId: 'page-1',
+        locale: 'nl',
+        slug: 'oude-titel',
+        title: 'Oude titel',
+        content: validTiptapContent,
+        status: ContentStatus.DRAFT,
+        publishedAt: null,
+      });
+      prismaMock.contentTranslation.update.mockResolvedValue({
+        id: 'translation-1',
+        status: ContentStatus.PUBLISHED,
+      });
+
+      await service.saveTranslation(
+        'page-1',
+        'nl',
+        {
+          title: 'Nieuwe titel',
+          content: validTiptapContent,
+          status: ContentStatus.PUBLISHED,
+        },
+        'user-1',
+      );
+
+      expect(prismaMock.contentTranslation.update).toHaveBeenCalledWith({
+        where: { id: 'translation-1' },
+        data: {
+          title: 'Nieuwe titel',
+          content: validTiptapContent,
+          status: ContentStatus.PUBLISHED,
+          publishedAt: expect.any(Date) as Date,
+          slug: 'nieuwe-titel',
+          updatedById: 'user-1',
+        },
+      });
+
+      expect(previousPublishedAt).toBeInstanceOf(Date);
+      expect(prismaMock.contentTranslation.create).not.toHaveBeenCalled();
+    });
+
+    it('preserves the existing status and publication date when status is omitted', async () => {
+      const publishedAt = new Date('2026-01-01T10:00:00.000Z');
+
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+        pageId: 'page-1',
+        locale: 'nl',
+        slug: 'oude-titel',
+        title: 'Oude titel',
+        content: validTiptapContent,
+        status: ContentStatus.PUBLISHED,
+        publishedAt,
+      });
+      prismaMock.contentTranslation.update.mockResolvedValue({
+        id: 'translation-1',
+      });
+
+      await service.saveTranslation(
+        'page-1',
+        'nl',
+        { title: 'Nieuwe titel' },
+        'user-1',
+      );
+
+      expect(prismaMock.contentTranslation.update).toHaveBeenCalledWith({
+        where: { id: 'translation-1' },
+        data: {
+          title: 'Nieuwe titel',
+          status: ContentStatus.PUBLISHED,
+          publishedAt,
+          slug: 'nieuwe-titel',
+          updatedById: 'user-1',
+        },
+      });
+    });
+
+    it('preserves the original publication date when editing an already published translation', async () => {
+      const publishedAt = new Date('2026-01-01T10:00:00.000Z');
+
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+        pageId: 'page-1',
+        locale: 'nl',
+        slug: 'over-ons',
+        title: 'Over ons',
+        content: validTiptapContent,
+        status: ContentStatus.PUBLISHED,
+        publishedAt,
+      });
+      prismaMock.contentTranslation.update.mockResolvedValue({
+        id: 'translation-1',
+      });
+
+      await service.saveTranslation(
+        'page-1',
+        'nl',
+        {
+          content: validTiptapContent,
+          status: ContentStatus.PUBLISHED,
+        },
+        'user-1',
+      );
+
+      expect(prismaMock.contentTranslation.update).toHaveBeenCalledWith({
+        where: { id: 'translation-1' },
+        data: {
+          content: validTiptapContent,
+          status: ContentStatus.PUBLISHED,
+          publishedAt,
+          slug: 'over-ons',
+          updatedById: 'user-1',
+        },
+      });
+    });
+
+    it('changes an existing translation to DRAFT in the same update', async () => {
+      const publishedAt = new Date('2026-01-01T10:00:00.000Z');
+
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+        pageId: 'page-1',
+        locale: 'nl',
+        slug: 'over-ons',
+        title: 'Over ons',
+        content: validTiptapContent,
+        status: ContentStatus.PUBLISHED,
+        publishedAt,
+      });
+      prismaMock.contentTranslation.update.mockResolvedValue({
+        id: 'translation-1',
+        status: ContentStatus.DRAFT,
+      });
+
+      await service.saveTranslation(
+        'page-1',
+        'nl',
+        { status: ContentStatus.DRAFT },
+        'user-1',
+      );
+
+      expect(prismaMock.contentTranslation.update).toHaveBeenCalledWith({
+        where: { id: 'translation-1' },
+        data: {
+          status: ContentStatus.DRAFT,
+          publishedAt,
+          slug: 'over-ons',
+          updatedById: 'user-1',
+        },
+      });
+    });
+
+    it('rejects publishing an existing translation without meaningful content', async () => {
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+        pageId: 'page-1',
+        locale: 'nl',
+        slug: 'over-ons',
+        title: 'Over ons',
+        content: { type: 'doc', content: [] },
+        status: ContentStatus.DRAFT,
+      });
+
+      await expect(
+        service.saveTranslation(
+          'page-1',
+          'nl',
+          { status: ContentStatus.PUBLISHED },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.contentTranslation.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects publishing a new translation without meaningful content', async () => {
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
+      prismaMock.contentTranslation.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.saveTranslation(
+          'page-1',
+          'nl',
+          {
+            title: 'Nieuwe pagina',
+            status: ContentStatus.PUBLISHED,
+          },
+          'user-1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.contentTranslation.create).not.toHaveBeenCalled();
     });
 
     it('rejects an empty Tiptap document', async () => {
@@ -347,6 +619,9 @@ describe('ContentService', () => {
           locale: 'nl',
           slug: 'oude-titel',
           title: 'Oude titel',
+          content: validTiptapContent,
+          status: ContentStatus.DRAFT,
+          publishedAt: null,
         })
         .mockResolvedValueOnce(null);
 
@@ -365,6 +640,8 @@ describe('ContentService', () => {
         where: { id: 'translation-nl' },
         data: {
           title: 'Nieuwe Nederlandse titel',
+          status: ContentStatus.DRAFT,
+          publishedAt: null,
           slug: 'nieuwe-nederlandse-titel',
           updatedById: 'user-1',
         },

@@ -85,10 +85,11 @@ describe('AdminContentController', () => {
     expect(guards).toContain(RolesGuard);
   });
 
-  it('passes the authenticated user ID when saving a translation', async () => {
+  it('passes title, content, status and authenticated user ID when saving a translation', async () => {
     const dto = {
       title: 'Testpagina',
       content: validTiptapContent,
+      status: ContentStatus.PUBLISHED,
     };
 
     const request = {
@@ -98,7 +99,16 @@ describe('AdminContentController', () => {
       },
     };
 
-    await controller.saveTranslation(
+    const expectedTranslation = {
+      id: 'translation-123',
+      ...dto,
+    };
+
+    contentServiceMock.saveTranslation.mockResolvedValue(
+      expectedTranslation,
+    );
+
+    const result = await controller.saveTranslation(
       'page-123',
       'nl',
       dto,
@@ -113,12 +123,14 @@ describe('AdminContentController', () => {
       dto,
       'admin-123',
     );
+    expect(result).toEqual(expectedTranslation);
   });
 
   it('passes the same page ID when adding a second locale', async () => {
     const dto = {
       title: 'About this app',
       content: validTiptapContent,
+      status: ContentStatus.DRAFT,
     };
 
     const expectedTranslation = {
@@ -161,7 +173,7 @@ describe('AdminContentController', () => {
     ContentStatus.PUBLISHED,
     ContentStatus.PRIVATE,
     ContentStatus.ARCHIVED,
-  ])('passes the %s status to the service', async (status) => {
+  ])('passes the %s status to the separate status endpoint', async (status) => {
     const dto = { status };
 
     const expectedTranslation = {

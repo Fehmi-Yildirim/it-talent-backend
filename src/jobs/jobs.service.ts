@@ -398,7 +398,7 @@ export class JobsService {
         break;
     }
 
-    const [items, total] = await this.prisma.$transaction([
+    const [items, total] = await Promise.all([
       this.prisma.job.findMany({
         where,
         include: {
@@ -425,9 +425,7 @@ export class JobsService {
         skip,
         take: limit,
       }),
-      this.prisma.job.count({
-        where,
-      }),
+      this.prisma.job.count({ where }),
     ]);
 
     return {

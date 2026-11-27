@@ -1,13 +1,14 @@
 import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { Prisma } from '../../../generated/prisma/client';
 import { IsTiptapJson } from '../validators/tiptap-json.validator';
 
 export class UpdateContentTranslationDto {
   @IsOptional()
   @IsString()
   @MaxLength(200)
-  draftTitle?: string;
+  title?: string;
 
   @IsOptional()
   @IsTiptapJson()
-  draftContent?: Record<string, unknown>;
+  content?: Prisma.InputJsonValue;
 }

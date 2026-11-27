@@ -3,8 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '../database/prisma.service';
+import { ContentStatus } from '../../generated/prisma/enums';
 import { Prisma } from '../../generated/prisma/client';
+import { PrismaService } from '../database/prisma.service';
 
 function containsMeaningfulText(value: unknown): boolean {
   if (!value || typeof value !== 'object') {
@@ -107,19 +108,19 @@ export class ContentService {
       where: {
         locale,
         slug,
-        isPublished: true,
+        status: ContentStatus.PUBLISHED,
       },
       select: {
         slug: true,
         locale: true,
-        publishedTitle: true,
-        publishedContent: true,
+        title: true,
+        content: true,
         publishedAt: true,
         page: {
           select: {
             translations: {
               where: {
-                isPublished: true,
+                status: ContentStatus.PUBLISHED,
               },
               orderBy: {
                 locale: 'asc',
@@ -175,11 +176,11 @@ export class ContentService {
   async create(
     title: string,
     locale: string,
-    draftContent: Prisma.InputJsonValue,
+    content: Prisma.InputJsonValue,
   ) {
     this.validateLocale(locale);
 
-    if (!hasMeaningfulTiptapContent(draftContent)) {
+    if (!hasMeaningfulTiptapContent(content)) {
       throw new BadRequestException('Page content cannot be empty');
     }
 
@@ -200,8 +201,9 @@ export class ContentService {
               pageId: page.id,
               locale,
               slug,
-              draftTitle: normalizedTitle,
-              draftContent,
+              title: normalizedTitle,
+              content,
+              status: ContentStatus.DRAFT,
             },
           });
 
@@ -228,17 +230,16 @@ export class ContentService {
     pageId: string,
     locale: string,
     data: {
-      draftTitle?: string;
-      draftContent?: object | null;
+      title?: string;
+      content?: Prisma.InputJsonValue;
     },
     userId: string,
   ) {
     this.validateLocale(locale);
 
     if (
-      data.draftContent !== undefined &&
-      data.draftContent !== null &&
-      !hasMeaningfulTiptapContent(data.draftContent)
+      data.content !== undefined &&
+      !hasMeaningfulTiptapContent(data.content)
     ) {
       throw new BadRequestException(
         'Content must contain meaningful text',
@@ -255,12 +256,12 @@ export class ContentService {
 
     if (existing) {
       let slug = existing.slug;
+      const normalizedTitle = data.title?.trim();
 
       if (
-        data.draftTitle !== undefined &&
-        data.draftTitle.trim() !== existing.draftTitle
+        normalizedTitle !== undefined &&
+        normalizedTitle !== existing.title
       ) {
-        const normalizedTitle = data.draftTitle.trim();
         const baseSlug = this.slugify(normalizedTitle);
         let foundUniqueSlug = false;
 
@@ -298,19 +299,22 @@ export class ContentService {
         where: { id: existing.id },
         data: {
           ...data,
+          ...(normalizedTitle !== undefined
+            ? { title: normalizedTitle }
+            : {}),
           slug,
           updatedById: userId,
         },
       });
     }
 
-    if (!data.draftTitle?.trim()) {
+    if (!data.title?.trim()) {
       throw new BadRequestException(
         'A title is required to create a translation',
       );
     }
 
-    const normalizedTitle = data.draftTitle.trim();
+    const normalizedTitle = data.title.trim();
     const baseSlug = this.slugify(normalizedTitle);
 
     for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
@@ -323,7 +327,8 @@ export class ContentService {
             locale,
             slug,
             ...data,
-            draftTitle: normalizedTitle,
+            title: normalizedTitle,
+            status: ContentStatus.DRAFT,
             updatedById: userId,
           },
         });
@@ -356,62 +361,61 @@ export class ContentService {
     );
   }
 
-  async publish(pageId: string, locale: string) {
+  async updateStatus(
+    pageId: string,
+    locale: string,
+    status: ContentStatus,
+  ) {
     this.validateLocale(locale);
 
     const translation = await this.prisma.contentTranslation.findUnique({
-      where: { pageId_locale: { pageId, locale } },
+      where: {
+        pageId_locale: { pageId, locale },
+      },
     });
 
     if (!translation) {
       throw new NotFoundException('Translation not found');
     }
 
-    if (
-      typeof translation.draftTitle !== 'string' ||
-      translation.draftTitle.trim().length === 0 ||
-      !hasMeaningfulTiptapContent(translation.draftContent)
-    ) {
-      throw new BadRequestException(
-        'Translation requires a title and meaningful content',
-      );
+    if (status === ContentStatus.PUBLISHED) {
+      if (
+        typeof translation.title !== 'string' ||
+        translation.title.trim().length === 0 ||
+        !hasMeaningfulTiptapContent(translation.content)
+      ) {
+        throw new BadRequestException(
+          'Translation requires a title and meaningful content',
+        );
+      }
     }
 
     return this.prisma.contentTranslation.update({
       where: { id: translation.id },
       data: {
-        publishedTitle: translation.draftTitle,
-        publishedContent: translation.draftContent,
-        isPublished: true,
-        publishedAt: new Date(),
+        status,
+        ...(status === ContentStatus.PUBLISHED
+          ? { publishedAt: new Date() }
+          : {}),
       },
     });
   }
 
+  async publish(pageId: string, locale: string) {
+    return this.updateStatus(pageId, locale, ContentStatus.PUBLISHED);
+  }
+
   async unpublish(pageId: string, locale: string) {
-    this.validateLocale(locale);
-
-    const translation = await this.prisma.contentTranslation.findUnique({
-      where: { pageId_locale: { pageId, locale } },
-    });
-
-    if (!translation) {
-      throw new NotFoundException('Translation not found');
-    }
-
-    return this.prisma.contentTranslation.update({
-      where: { id: translation.id },
-      data: {
-        isPublished: false,
-      },
-    });
+    return this.updateStatus(pageId, locale, ContentStatus.DRAFT);
   }
 
   async removeTranslation(pageId: string, locale: string) {
     this.validateLocale(locale);
 
     const translation = await this.prisma.contentTranslation.findUnique({
-      where: { pageId_locale: { pageId, locale } },
+      where: {
+        pageId_locale: { pageId, locale },
+      },
     });
 
     if (!translation) {

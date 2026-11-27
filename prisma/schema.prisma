@@ -13,6 +13,13 @@ enum UserRole {
   ADMIN
 }
 
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  PRIVATE
+  ARCHIVED
+}
+
 enum UserStatus {
   ACTIVE
   PENDING
@@ -323,18 +330,14 @@ model ContentPage {
 }
 
 model ContentTranslation {
-  id     String @id @default(uuid()) @db.Uuid
-  pageId String @db.Uuid
-  locale String @db.VarChar(2)
-  slug   String @db.VarChar(100)
-
-  draftTitle        String?
-  draftContent      Json?
-
-  publishedTitle        String?
-  publishedContent      Json?
-  isPublished           Boolean   @default(false)
-  publishedAt           DateTime?
+  id          String        @id @default(uuid()) @db.Uuid
+  pageId      String        @db.Uuid
+  locale      String        @db.VarChar(2)
+  slug        String        @db.VarChar(100)
+  title       String?
+  content     Json?
+  status      ContentStatus @default(DRAFT)
+  publishedAt DateTime?
 
   updatedById String?  @db.Uuid
   createdAt   DateTime @default(now())
@@ -345,7 +348,7 @@ model ContentTranslation {
 
   @@unique([pageId, locale])
   @@unique([locale, slug])
-  @@index([locale, isPublished])
+  @@index([locale, status])
   @@index([updatedById])
   @@map("content_translations")
 }

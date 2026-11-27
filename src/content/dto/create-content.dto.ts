@@ -1,4 +1,3 @@
-
 import {
   IsIn,
   IsObject,
@@ -18,5 +17,5 @@ export class CreateContentDto {
   locale: 'nl' | 'en';
 
   @IsObject()
-  draftContent: Record<string, unknown>;
+  content: Record<string, unknown>;
 }

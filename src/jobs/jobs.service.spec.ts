@@ -1132,7 +1132,6 @@ describe('JobsService', () => {
 
     prisma.job.findMany.mockResolvedValue(items);
     prisma.job.count.mockResolvedValue(1);
-    prisma.$transaction.mockResolvedValue([items, 1]);
 
     const result = await serviceResult<DiscoveryResult>(() =>
       service.discover('candidate-user', {
@@ -1178,7 +1177,7 @@ describe('JobsService', () => {
       }),
     );
 
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
 
     expect(result).toEqual({
       items: [
@@ -1208,7 +1207,6 @@ describe('JobsService', () => {
 
     prisma.job.findMany.mockResolvedValue(items);
     prisma.job.count.mockResolvedValue(1);
-    prisma.$transaction.mockResolvedValue([items, 1]);
 
     const result = await serviceResult<DiscoveryResult>(() =>
       service.discover('candidate-user', {
@@ -1264,7 +1262,6 @@ describe('JobsService', () => {
 
     prisma.job.findMany.mockResolvedValue(items);
     prisma.job.count.mockResolvedValue(1);
-    prisma.$transaction.mockResolvedValue([items, 1]);
 
     const result = await serviceResult<DiscoveryResult>(() =>
       service.discover('candidate-user', {}),

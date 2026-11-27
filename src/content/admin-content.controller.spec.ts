@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
-import { UserRole } from '../../generated/prisma/enums';
+import { ContentStatus, UserRole } from '../../generated/prisma/enums';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { AdminContentController } from './admin-content.controller';
@@ -14,12 +14,7 @@ describe('AdminContentController', () => {
     content: [
       {
         type: 'paragraph',
-        content: [
-          {
-            type: 'text',
-            text: 'Dit is een test.',
-          },
-        ],
+        content: [{ type: 'text', text: 'Dit is een test.' }],
       },
     ],
   };
@@ -29,6 +24,7 @@ describe('AdminContentController', () => {
     create: jest.fn(),
     findOne: jest.fn(),
     saveTranslation: jest.fn(),
+    updateStatus: jest.fn(),
     publish: jest.fn(),
     unpublish: jest.fn(),
     removeTranslation: jest.fn(),
@@ -51,15 +47,15 @@ describe('AdminContentController', () => {
     controller = module.get<AdminContentController>(AdminContentController);
   });
 
-  it('should be defined', () => {
+  it('is defined', () => {
     expect(controller).toBeDefined();
   });
 
-  it('should pass the title, locale and draft content when creating a page', async () => {
+  it('passes title, locale and content when creating a page', async () => {
     const dto = {
       title: 'About this app',
       locale: 'en' as const,
-      draftContent: validTiptapContent,
+      content: validTiptapContent,
     };
 
     const expectedPage = {
@@ -76,11 +72,10 @@ describe('AdminContentController', () => {
       'en',
       validTiptapContent,
     );
-
     expect(result).toEqual(expectedPage);
   });
 
-  it('should apply JWT and role guards to the controller', () => {
+  it('applies JWT and role guards to the controller', () => {
     const guards: unknown = Reflect.getMetadata(
       GUARDS_METADATA,
       AdminContentController,
@@ -90,10 +85,10 @@ describe('AdminContentController', () => {
     expect(guards).toContain(RolesGuard);
   });
 
-  it('should pass the authenticated user ID when saving a translation', async () => {
+  it('passes the authenticated user ID when saving a translation', async () => {
     const dto = {
-      draftTitle: 'Testpagina',
-      draftContent: validTiptapContent,
+      title: 'Testpagina',
+      content: validTiptapContent,
     };
 
     const request = {
@@ -120,17 +115,10 @@ describe('AdminContentController', () => {
     );
   });
 
-  it('should pass the same page ID when adding a second locale', async () => {
+  it('passes the same page ID when adding a second locale', async () => {
     const dto = {
-      draftTitle: 'About this app',
-      draftContent: validTiptapContent,
-    };
-
-    const request = {
-      user: {
-        id: 'admin-123',
-        role: UserRole.ADMIN,
-      },
+      title: 'About this app',
+      content: validTiptapContent,
     };
 
     const expectedTranslation = {
@@ -142,6 +130,13 @@ describe('AdminContentController', () => {
     contentServiceMock.saveTranslation.mockResolvedValue(
       expectedTranslation,
     );
+
+    const request = {
+      user: {
+        id: 'admin-123',
+        role: UserRole.ADMIN,
+      },
+    };
 
     const result = await controller.saveTranslation(
       'page-123',
@@ -158,7 +153,35 @@ describe('AdminContentController', () => {
       dto,
       'admin-123',
     );
+    expect(result).toEqual(expectedTranslation);
+  });
 
+  it.each([
+    ContentStatus.DRAFT,
+    ContentStatus.PUBLISHED,
+    ContentStatus.PRIVATE,
+    ContentStatus.ARCHIVED,
+  ])('passes the %s status to the service', async (status) => {
+    const dto = { status };
+
+    const expectedTranslation = {
+      id: 'translation-123',
+      status,
+    };
+
+    contentServiceMock.updateStatus.mockResolvedValue(expectedTranslation);
+
+    const result = await controller.updateStatus(
+      'page-123',
+      'nl',
+      dto,
+    );
+
+    expect(contentServiceMock.updateStatus).toHaveBeenCalledWith(
+      'page-123',
+      'nl',
+      status,
+    );
     expect(result).toEqual(expectedTranslation);
   });
 });

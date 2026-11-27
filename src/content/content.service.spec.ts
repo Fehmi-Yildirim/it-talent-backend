@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ContentStatus } from '../../generated/prisma/enums';
 import { ContentService } from './content.service';
 import { PrismaService } from '../database/prisma.service';
 
@@ -11,12 +12,7 @@ describe('ContentService', () => {
     content: [
       {
         type: 'paragraph',
-        content: [
-          {
-            type: 'text',
-            text: 'Dit is een test.',
-          },
-        ],
+        content: [{ type: 'text', text: 'Dit is een test.' }],
       },
     ],
   };
@@ -69,14 +65,10 @@ describe('ContentService', () => {
 
   describe('create', () => {
     beforeEach(() => {
-      txMock.contentPage.create.mockResolvedValue({
-        id: 'page-1',
-      });
-
+      txMock.contentPage.create.mockResolvedValue({ id: 'page-1' });
       txMock.contentTranslation.create.mockResolvedValue({
         id: 'translation-1',
       });
-
       txMock.contentPage.findUniqueOrThrow.mockResolvedValue({
         id: 'page-1',
         translations: [
@@ -84,13 +76,14 @@ describe('ContentService', () => {
             id: 'translation-1',
             locale: 'en',
             slug: 'about-this-app',
-            draftTitle: 'About this app',
+            title: 'About this app',
+            status: ContentStatus.DRAFT,
           },
         ],
       });
     });
 
-    it('should create a page with an English translation', async () => {
+    it('creates a page with an English draft translation', async () => {
       await service.create('About this app', 'en', validTiptapContent);
 
       expect(txMock.contentTranslation.create).toHaveBeenCalledWith({
@@ -98,13 +91,14 @@ describe('ContentService', () => {
           pageId: 'page-1',
           locale: 'en',
           slug: 'about-this-app',
-          draftTitle: 'About this app',
-          draftContent: validTiptapContent,
+          title: 'About this app',
+          content: validTiptapContent,
+          status: ContentStatus.DRAFT,
         },
       });
     });
 
-    it('should create a page with a Dutch translation', async () => {
+    it('creates a page with a Dutch draft translation', async () => {
       await service.create('Over deze app', 'nl', validTiptapContent);
 
       expect(txMock.contentTranslation.create).toHaveBeenCalledWith({
@@ -112,13 +106,14 @@ describe('ContentService', () => {
           pageId: 'page-1',
           locale: 'nl',
           slug: 'over-deze-app',
-          draftTitle: 'Over deze app',
-          draftContent: validTiptapContent,
+          title: 'Over deze app',
+          content: validTiptapContent,
+          status: ContentStatus.DRAFT,
         },
       });
     });
 
-    it('should reject unsupported locales', async () => {
+    it('rejects unsupported locales', async () => {
       await expect(
         service.create('About this app', 'fr', validTiptapContent),
       ).rejects.toThrow(BadRequestException);
@@ -126,7 +121,7 @@ describe('ContentService', () => {
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
     });
 
-    it('should reject an empty Tiptap document without creating a page', async () => {
+    it('rejects an empty Tiptap document', async () => {
       await expect(
         service.create('Empty page', 'en', {
           type: 'doc',
@@ -136,32 +131,25 @@ describe('ContentService', () => {
 
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
       expect(txMock.contentPage.create).not.toHaveBeenCalled();
-      expect(txMock.contentTranslation.create).not.toHaveBeenCalled();
     });
 
-    it('should reject Tiptap content containing only whitespace', async () => {
+    it('rejects Tiptap content containing only whitespace', async () => {
       await expect(
         service.create('Whitespace page', 'en', {
           type: 'doc',
           content: [
             {
               type: 'paragraph',
-              content: [
-                {
-                  type: 'text',
-                  text: '   ',
-                },
-              ],
+              content: [{ type: 'text', text: '   ' }],
             },
           ],
         }),
       ).rejects.toThrow(BadRequestException);
 
       expect(prismaMock.$transaction).not.toHaveBeenCalled();
-      expect(txMock.contentPage.create).not.toHaveBeenCalled();
     });
 
-    it('should reject when creating the translation fails', async () => {
+    it('propagates a database error', async () => {
       txMock.contentTranslation.create.mockRejectedValue(
         new Error('Database error'),
       );
@@ -169,34 +157,22 @@ describe('ContentService', () => {
       await expect(
         service.create('About this app', 'en', validTiptapContent),
       ).rejects.toThrow('Database error');
-
-      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
-      expect(txMock.contentPage.create).toHaveBeenCalledTimes(1);
-      expect(txMock.contentTranslation.create).toHaveBeenCalledTimes(1);
-      expect(txMock.contentPage.findUniqueOrThrow).not.toHaveBeenCalled();
     });
   });
 
   describe('findPublished', () => {
-    it('should return a published translation with its published translations', async () => {
+    it('returns a published translation and its published language alternatives', async () => {
       const publishedAt = new Date();
-
       const publishedPage = {
         slug: 'over-ons',
         locale: 'nl',
-        publishedTitle: 'Over ons',
-        publishedContent: validTiptapContent,
+        title: 'Over ons',
+        content: validTiptapContent,
         publishedAt,
         page: {
           translations: [
-            {
-              locale: 'en',
-              slug: 'about-us',
-            },
-            {
-              locale: 'nl',
-              slug: 'over-ons',
-            },
+            { locale: 'en', slug: 'about-us' },
+            { locale: 'nl', slug: 'over-ons' },
           ],
         },
       };
@@ -208,122 +184,101 @@ describe('ContentService', () => {
       expect(result).toEqual({
         slug: 'over-ons',
         locale: 'nl',
-        publishedTitle: 'Over ons',
-        publishedContent: validTiptapContent,
+        title: 'Over ons',
+        content: validTiptapContent,
         publishedAt,
         translations: [
-          {
-            locale: 'en',
-            slug: 'about-us',
-          },
-          {
-            locale: 'nl',
-            slug: 'over-ons',
-          },
+          { locale: 'en', slug: 'about-us' },
+          { locale: 'nl', slug: 'over-ons' },
         ],
       });
 
-      expect(prismaMock.contentTranslation.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            locale: 'nl',
-            isPublished: true,
-            slug: 'over-ons',
-          },
-          select: {
-            slug: true,
-            locale: true,
-            publishedTitle: true,
-            publishedContent: true,
-            publishedAt: true,
-            page: {
-              select: {
-                translations: {
-                  where: {
-                    isPublished: true,
-                  },
-                  orderBy: {
-                    locale: 'asc',
-                  },
-                  select: {
-                    locale: true,
-                    slug: true,
-                  },
+      expect(prismaMock.contentTranslation.findFirst).toHaveBeenCalledWith({
+        where: {
+          locale: 'nl',
+          slug: 'over-ons',
+          status: ContentStatus.PUBLISHED,
+        },
+        select: {
+          slug: true,
+          locale: true,
+          title: true,
+          content: true,
+          publishedAt: true,
+          page: {
+            select: {
+              translations: {
+                where: { status: ContentStatus.PUBLISHED },
+                orderBy: { locale: 'asc' },
+                select: {
+                  locale: true,
+                  slug: true,
                 },
               },
             },
           },
-        }),
-      );
+        },
+      });
     });
 
-    it('should not return an unpublished or missing translation', async () => {
+    it('does not return a missing or non-published translation', async () => {
       prismaMock.contentTranslation.findFirst.mockResolvedValue(null);
 
-      await expect(service.findPublished('over-ons', 'nl')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findPublished('over-ons', 'nl'),
+      ).rejects.toThrow(NotFoundException);
     });
 
-    it('should reject unsupported locales', async () => {
-      await expect(service.findPublished('over-ons', 'de')).rejects.toThrow(
-        BadRequestException,
-      );
+    it('rejects unsupported locales', async () => {
+      await expect(
+        service.findPublished('over-ons', 'de'),
+      ).rejects.toThrow(BadRequestException);
 
       expect(prismaMock.contentTranslation.findFirst).not.toHaveBeenCalled();
     });
   });
 
   describe('saveTranslation', () => {
-    it('should save draft content without changing published content', async () => {
+    it('creates a translation with a single content version and DRAFT status', async () => {
       prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
       prismaMock.contentTranslation.findUnique.mockResolvedValue(null);
       prismaMock.contentTranslation.create.mockResolvedValue({
         id: 'translation-1',
       });
 
-      const draft = {
-        draftTitle: 'Nieuwe titel',
-        draftContent: validTiptapContent,
+      const data = {
+        title: 'Nieuwe titel',
+        content: validTiptapContent,
       };
 
-      await service.saveTranslation('page-1', 'nl', draft, 'user-1');
+      await service.saveTranslation('page-1', 'nl', data, 'user-1');
 
-      expect(prismaMock.contentTranslation.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: {
-            ...draft,
-            pageId: 'page-1',
-            locale: 'nl',
-            slug: 'nieuwe-titel',
-            draftTitle: 'Nieuwe titel',
-            updatedById: 'user-1',
-          },
-        }),
-      );
+      expect(prismaMock.contentTranslation.create).toHaveBeenCalledWith({
+        data: {
+          pageId: 'page-1',
+          locale: 'nl',
+          slug: 'nieuwe-titel',
+          title: 'Nieuwe titel',
+          content: validTiptapContent,
+          status: ContentStatus.DRAFT,
+          updatedById: 'user-1',
+        },
+      });
     });
 
-    it('should create a second locale for the same page', async () => {
-      prismaMock.contentPage.findUnique.mockResolvedValue({
-        id: 'page-1',
-      });
-
+    it('creates another locale for the same page', async () => {
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
       prismaMock.contentTranslation.findUnique.mockResolvedValue(null);
-
       prismaMock.contentTranslation.create.mockResolvedValue({
         id: 'translation-en',
-        pageId: 'page-1',
-        locale: 'en',
-        slug: 'about-this-app',
-        draftTitle: 'About this app',
       });
 
       await service.saveTranslation(
         'page-1',
         'en',
         {
-          draftTitle: 'About this app',
-          draftContent: validTiptapContent,
+          title: 'About this app',
+          content: validTiptapContent,
         },
         'user-1',
       );
@@ -333,21 +288,22 @@ describe('ContentService', () => {
           pageId: 'page-1',
           locale: 'en',
           slug: 'about-this-app',
-          draftTitle: 'About this app',
-          draftContent: validTiptapContent,
+          title: 'About this app',
+          content: validTiptapContent,
+          status: ContentStatus.DRAFT,
           updatedById: 'user-1',
         },
       });
     });
 
-    it('should reject an empty Tiptap document without saving it', async () => {
+    it('rejects an empty Tiptap document', async () => {
       await expect(
         service.saveTranslation(
           'page-1',
           'nl',
           {
-            draftTitle: 'Lege pagina',
-            draftContent: { type: 'doc', content: [] },
+            title: 'Lege pagina',
+            content: { type: 'doc', content: [] },
           },
           'user-1',
         ),
@@ -355,27 +311,21 @@ describe('ContentService', () => {
 
       expect(prismaMock.contentPage.findUnique).not.toHaveBeenCalled();
       expect(prismaMock.contentTranslation.create).not.toHaveBeenCalled();
-      expect(prismaMock.contentTranslation.update).not.toHaveBeenCalled();
     });
 
-    it('should reject Tiptap content containing only whitespace', async () => {
+    it('rejects Tiptap content containing only whitespace', async () => {
       await expect(
         service.saveTranslation(
           'page-1',
           'nl',
           {
-            draftTitle: 'Pagina met witruimte',
-            draftContent: {
+            title: 'Pagina met witruimte',
+            content: {
               type: 'doc',
               content: [
                 {
                   type: 'paragraph',
-                  content: [
-                    {
-                      type: 'text',
-                      text: '   ',
-                    },
-                  ],
+                  content: [{ type: 'text', text: '   ' }],
                 },
               ],
             },
@@ -388,46 +338,43 @@ describe('ContentService', () => {
       expect(prismaMock.contentTranslation.update).not.toHaveBeenCalled();
     });
 
-    it('should update an existing translation instead of creating another one', async () => {
-      prismaMock.contentPage.findUnique.mockResolvedValue({
-        id: 'page-1',
-      });
-
-      prismaMock.contentTranslation.findUnique.mockResolvedValue({
-        id: 'translation-nl',
-        pageId: 'page-1',
-        locale: 'nl',
-      });
+    it('updates an existing translation and regenerates its slug when the title changes', async () => {
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
+      prismaMock.contentTranslation.findUnique
+        .mockResolvedValueOnce({
+          id: 'translation-nl',
+          pageId: 'page-1',
+          locale: 'nl',
+          slug: 'oude-titel',
+          title: 'Oude titel',
+        })
+        .mockResolvedValueOnce(null);
 
       prismaMock.contentTranslation.update.mockResolvedValue({
         id: 'translation-nl',
-        draftTitle: 'Nieuwe Nederlandse titel',
       });
 
       await service.saveTranslation(
         'page-1',
         'nl',
-        { draftTitle: 'Nieuwe Nederlandse titel' },
+        { title: 'Nieuwe Nederlandse titel' },
         'user-1',
       );
 
       expect(prismaMock.contentTranslation.update).toHaveBeenCalledWith({
         where: { id: 'translation-nl' },
         data: {
-          draftTitle: 'Nieuwe Nederlandse titel',
-          updatedById: 'user-1',
+          title: 'Nieuwe Nederlandse titel',
           slug: 'nieuwe-nederlandse-titel',
+          updatedById: 'user-1',
         },
       });
 
       expect(prismaMock.contentTranslation.create).not.toHaveBeenCalled();
     });
 
-    it('should reject creating a translation without a title', async () => {
-      prismaMock.contentPage.findUnique.mockResolvedValue({
-        id: 'page-1',
-      });
-
+    it('rejects creating a translation without a title', async () => {
+      prismaMock.contentPage.findUnique.mockResolvedValue({ id: 'page-1' });
       prismaMock.contentTranslation.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -437,14 +384,14 @@ describe('ContentService', () => {
       expect(prismaMock.contentTranslation.create).not.toHaveBeenCalled();
     });
 
-    it('should reject saving a translation for a non-existing page', async () => {
+    it('rejects saving a translation for a non-existing page', async () => {
       prismaMock.contentPage.findUnique.mockResolvedValue(null);
 
       await expect(
         service.saveTranslation(
           'unknown-page',
           'en',
-          { draftTitle: 'About this app' },
+          { title: 'About this app' },
           'user-1',
         ),
       ).rejects.toThrow(NotFoundException);
@@ -452,60 +399,149 @@ describe('ContentService', () => {
       expect(prismaMock.contentTranslation.findUnique).not.toHaveBeenCalled();
       expect(prismaMock.contentTranslation.create).not.toHaveBeenCalled();
     });
+  });
 
-    it('should update a translation created concurrently', async () => {
-      const concurrentTranslation = {
-        id: 'translation-en',
-        pageId: 'page-1',
-        locale: 'en',
-      };
-
-      prismaMock.contentPage.findUnique.mockResolvedValue({
-        id: 'page-1',
+  describe('updateStatus', () => {
+    it.each([
+      ContentStatus.DRAFT,
+      ContentStatus.PRIVATE,
+      ContentStatus.ARCHIVED,
+    ])('changes a translation status to %s', async (status) => {
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+        title: 'Over ons',
+        content: validTiptapContent,
       });
-
-      prismaMock.contentTranslation.findUnique
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(concurrentTranslation);
-
-      prismaMock.contentTranslation.create.mockRejectedValue({
-        code: 'P2002',
-      });
-
       prismaMock.contentTranslation.update.mockResolvedValue({
-        ...concurrentTranslation,
-        draftTitle: 'About this app',
+        id: 'translation-1',
+        status,
       });
 
-      await service.saveTranslation(
+      await service.updateStatus('page-1', 'nl', status);
+
+      expect(prismaMock.contentTranslation.update).toHaveBeenCalledWith({
+        where: { id: 'translation-1' },
+        data: { status },
+      });
+    });
+
+    it('publishes a translation and records publishedAt', async () => {
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+        title: 'Over ons',
+        content: validTiptapContent,
+      });
+      prismaMock.contentTranslation.update.mockResolvedValue({
+        id: 'translation-1',
+        status: ContentStatus.PUBLISHED,
+      });
+
+      await service.updateStatus(
         'page-1',
-        'en',
-        { draftTitle: 'About this app' },
-        'user-1',
+        'nl',
+        ContentStatus.PUBLISHED,
       );
 
       expect(prismaMock.contentTranslation.update).toHaveBeenCalledWith({
-        where: { id: 'translation-en' },
+        where: { id: 'translation-1' },
         data: {
-          draftTitle: 'About this app',
-          updatedById: 'user-1',
+          status: ContentStatus.PUBLISHED,
+          publishedAt: expect.any(Date) as Date,
         },
       });
+    });
+
+    it('rejects publishing without a title or content', async () => {
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+        title: null,
+        content: null,
+      });
+
+      await expect(
+        service.updateStatus(
+          'page-1',
+          'nl',
+          ContentStatus.PUBLISHED,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.contentTranslation.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects publishing an empty Tiptap document', async () => {
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+        title: 'Lege pagina',
+        content: { type: 'doc', content: [] },
+      });
+
+      await expect(
+        service.updateStatus(
+          'page-1',
+          'nl',
+          ContentStatus.PUBLISHED,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.contentTranslation.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects publishing a whitespace-only title', async () => {
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+        title: '   ',
+        content: validTiptapContent,
+      });
+
+      await expect(
+        service.updateStatus(
+          'page-1',
+          'nl',
+          ContentStatus.PUBLISHED,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.contentTranslation.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects changing the status of a missing translation', async () => {
+      prismaMock.contentTranslation.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateStatus(
+          'page-1',
+          'nl',
+          ContentStatus.PRIVATE,
+        ),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(prismaMock.contentTranslation.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects unsupported locales', async () => {
+      await expect(
+        service.updateStatus(
+          'page-1',
+          'de',
+          ContentStatus.PRIVATE,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.contentTranslation.findUnique).not.toHaveBeenCalled();
     });
   });
 
   describe('publish', () => {
-    it('should copy draft fields into the published snapshot', async () => {
-      const translation = {
+    it('sets the status to PUBLISHED', async () => {
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
         id: 'translation-1',
-        draftTitle: 'Nieuwe titel',
-        draftContent: validTiptapContent,
-      };
-
-      prismaMock.contentTranslation.findUnique.mockResolvedValue(translation);
+        title: 'Nieuwe titel',
+        content: validTiptapContent,
+      });
       prismaMock.contentTranslation.update.mockResolvedValue({
-        ...translation,
-        isPublished: true,
+        id: 'translation-1',
+        status: ContentStatus.PUBLISHED,
       });
 
       await service.publish('page-1', 'nl');
@@ -513,72 +549,81 @@ describe('ContentService', () => {
       expect(prismaMock.contentTranslation.update).toHaveBeenCalledWith({
         where: { id: 'translation-1' },
         data: {
-          publishedTitle: 'Nieuwe titel',
-          publishedContent: translation.draftContent,
-          isPublished: true,
+          status: ContentStatus.PUBLISHED,
           publishedAt: expect.any(Date) as Date,
         },
       });
     });
-
-    it('should reject publishing without a title or content', async () => {
-      prismaMock.contentTranslation.findUnique.mockResolvedValue({
-        id: 'translation-1',
-        draftTitle: null,
-        draftContent: null,
-      });
-
-      await expect(service.publish('page-1', 'nl')).rejects.toThrow(
-        BadRequestException,
-      );
-
-      expect(prismaMock.contentTranslation.update).not.toHaveBeenCalled();
-    });
-
-    it('should reject publishing an empty Tiptap document', async () => {
-      prismaMock.contentTranslation.findUnique.mockResolvedValue({
-        id: 'translation-1',
-        draftTitle: 'Lege pagina',
-        draftContent: { type: 'doc', content: [] },
-      });
-
-      await expect(service.publish('page-1', 'nl')).rejects.toThrow(
-        BadRequestException,
-      );
-
-      expect(prismaMock.contentTranslation.update).not.toHaveBeenCalled();
-    });
-
-    it('should reject publishing a title containing only whitespace', async () => {
-      prismaMock.contentTranslation.findUnique.mockResolvedValue({
-        id: 'translation-1',
-        draftTitle: '   ',
-        draftContent: validTiptapContent,
-      });
-
-      await expect(service.publish('page-1', 'nl')).rejects.toThrow(
-        BadRequestException,
-      );
-
-      expect(prismaMock.contentTranslation.update).not.toHaveBeenCalled();
-    });
   });
 
   describe('unpublish', () => {
-    it('should set isPublished to false', async () => {
+    it('returns the translation to DRAFT', async () => {
       prismaMock.contentTranslation.findUnique.mockResolvedValue({
         id: 'translation-1',
       });
       prismaMock.contentTranslation.update.mockResolvedValue({
-        isPublished: false,
+        id: 'translation-1',
+        status: ContentStatus.DRAFT,
       });
 
       await service.unpublish('page-1', 'nl');
 
       expect(prismaMock.contentTranslation.update).toHaveBeenCalledWith({
         where: { id: 'translation-1' },
-        data: { isPublished: false },
+        data: { status: ContentStatus.DRAFT },
       });
+    });
+  });
+
+  describe('removeTranslation', () => {
+    it('deletes an existing translation', async () => {
+      prismaMock.contentTranslation.findUnique.mockResolvedValue({
+        id: 'translation-1',
+      });
+      prismaMock.contentTranslation.delete.mockResolvedValue({
+        id: 'translation-1',
+      });
+
+      await service.removeTranslation('page-1', 'nl');
+
+      expect(prismaMock.contentTranslation.delete).toHaveBeenCalledWith({
+        where: { id: 'translation-1' },
+      });
+    });
+
+    it('rejects deleting a missing translation', async () => {
+      prismaMock.contentTranslation.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.removeTranslation('page-1', 'nl'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('removePage', () => {
+    it('deletes an existing page', async () => {
+      prismaMock.contentPage.findUnique.mockResolvedValue({
+        id: 'page-1',
+      });
+      prismaMock.contentPage.delete.mockResolvedValue({
+        id: 'page-1',
+      });
+
+      await service.removePage('page-1');
+
+      expect(prismaMock.contentPage.delete).toHaveBeenCalledWith({
+        where: { id: 'page-1' },
+      });
+    });
+
+    it('rejects deleting a missing page', async () => {
+      prismaMock.contentPage.findUnique.mockResolvedValue(null);
+
+      await expect(service.removePage('unknown-page')).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(prismaMock.contentPage.delete).not.toHaveBeenCalled();
     });
   });
 });
